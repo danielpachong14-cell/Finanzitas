@@ -3,13 +3,17 @@
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ApiClient, Category } from "@/core/api/ApiClient";
+import { useCategories } from "@/core/hooks/useQueries";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: qCategories, isLoading: loading } = useCategories();
+  const categories = qCategories || [];
+
   const [activeTab, setActiveTab] = useState<'income' | 'expense'>('expense');
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
@@ -25,21 +29,9 @@ export default function CategoriesPage() {
   const [color, setColor] = useState("#E8F5E9");
   const [iconColor, setIconColor] = useState("#2E7D32");
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
-    setLoading(true);
-    try {
-      const data = await ApiClient.getCategories();
-      setCategories(data);
-    } catch (error) {
-      console.error("Error loading categories", error);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const invalidateData = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['categories'] });
+  };
 
   const openModal = (category?: Category) => {
     if (category) {
@@ -98,7 +90,7 @@ export default function CategoriesPage() {
           iconColor
         );
       }
-      await loadData();
+      await invalidateData();
       closeModal();
     } catch (error) {
       console.error(error);
@@ -114,7 +106,7 @@ export default function CategoriesPage() {
     setSaving(true);
     try {
       await ApiClient.deleteCategory(editingId);
-      await loadData();
+      await invalidateData();
       closeModal();
     } catch (error) {
       console.error(error);

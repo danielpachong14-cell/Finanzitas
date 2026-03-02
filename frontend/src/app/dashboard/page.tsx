@@ -1,56 +1,48 @@
 "use client";
 
-import { useEffect, useState } from"react";
-import { AppLayout } from"@/components/layout/AppLayout";
-import { formatCurrency } from"@/lib/utils";
-import { ApiClient, Balance, Transaction } from"@/core/api/ApiClient";
-import { Card, CardContent } from"@/components/ui/card";
-import { ArrowDownLeft, ArrowUpRight, Bell, Wallet } from"lucide-react";
-import { useUserOptions } from"@/core/context/UserContext";
+import { useEffect, useState } from "react";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { formatCurrency } from "@/lib/utils";
+import { ApiClient, Balance, Transaction } from "@/core/api/ApiClient";
+import { useTransactions, useBalance } from "@/core/hooks/useQueries";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowDownLeft, ArrowUpRight, Bell, Wallet } from "lucide-react";
+import { useUserOptions } from "@/core/context/UserContext";
 
 export default function DashboardPage() {
   const { currency } = useUserOptions();
   const [balance, setBalance] = useState<Balance | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
+  const { data: rawTransactions, isLoading: isLoadingTx } = useTransactions();
+  const { data: rawBalance, isLoading: isLoadingBal } = useBalance();
+  const loading = isLoadingTx || isLoadingBal;
+
   useEffect(() => {
-    async function loadData() {
-      try {
-        // In a real app we would pass filters to ApiClient.getBalance(month, year)
-        // Here we fetch all mocks and filter in memory for the MVP
-        const txData = await ApiClient.getTransactions();
+    if (!rawTransactions) return;
 
-        // Filter transactions by selected month/year
-        const filteredTx = txData.filter(tx => {
-          const txDate = new Date(tx.date);
-          return txDate.getMonth() === selectedMonth && txDate.getFullYear() === selectedYear;
-        });
+    // Filter transactions by selected month/year
+    const filteredTx = rawTransactions.filter(tx => {
+      const txDate = new Date(tx.date);
+      return txDate.getMonth() === selectedMonth && txDate.getFullYear() === selectedYear;
+    });
 
-        setTransactions(filteredTx);
+    setTransactions(filteredTx);
 
-        // Recalculate balance for the specific period
-        const income = filteredTx.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-        const expense = filteredTx.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    // Recalculate balance for the specific period
+    const income = filteredTx.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const expense = filteredTx.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
 
-        // Using total from mock endpoint just as a general balance, but period balance below
-        setBalance({
-          total: income - expense, // Technically this should be all-time total, but for MVP period total is fine
-          income,
-          expense
-        });
-      } catch (error) {
-        console.error("Error fetching data", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [selectedMonth, selectedYear]);
+    setBalance({
+      total: rawBalance?.total || (income - expense), // Fallback to calculated if raw is missing
+      income,
+      expense
+    });
+  }, [selectedMonth, selectedYear, rawTransactions, rawBalance]);
 
-  const months = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
   return (
     <AppLayout>
@@ -66,7 +58,7 @@ export default function DashboardPage() {
               className="relative p-2 bg-primary/10 rounded-full text-primary transition-all hover:bg-primary/20"
               title="Nueva Transacción"
             >
-              <ArrowUpRight size={20} className="transform rotate-45"/>
+              <ArrowUpRight size={20} className="transform rotate-45" />
             </button>
             <button className="relative p-2 bg-card border border-border/50 text-foreground rounded-full">
               <Bell size={20} />
@@ -97,11 +89,11 @@ export default function DashboardPage() {
             <div>
               <p className="text-primary-foreground/80 text-sm font-medium mb-1">Flujo Neto del Período</p>
               <h2 className="text-4xl font-bold tracking-tight">
-                {loading ?"...": formatCurrency(balance?.total || 0, currency)}
+                {loading ? "..." : formatCurrency(balance?.total || 0, currency)}
               </h2>
             </div>
             <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
-              <Wallet size={24} className="text-white"/>
+              <Wallet size={24} className="text-white" />
             </div>
           </div>
         </div>
@@ -111,11 +103,11 @@ export default function DashboardPage() {
           <Card className="rounded-[24px] border border-border/50 bg-card">
             <CardContent className="p-5 flex flex-col">
               <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
-                <ArrowDownLeft size={20} strokeWidth={2.5} className="text-emerald-500"/>
+                <ArrowDownLeft size={20} strokeWidth={2.5} className="text-emerald-500" />
               </div>
               <p className="text-xs text-muted-foreground font-bold mb-1 uppercase tracking-wider">Ingresos</p>
               <p className="text-lg font-bold text-foreground tracking-tight">
-                {loading ?"...": formatCurrency(balance?.income || 0, currency)}
+                {loading ? "..." : formatCurrency(balance?.income || 0, currency)}
               </p>
             </CardContent>
           </Card>
@@ -123,11 +115,11 @@ export default function DashboardPage() {
           <Card className="rounded-[24px] border border-border/50 bg-card">
             <CardContent className="p-5 flex flex-col">
               <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-                <ArrowUpRight size={20} strokeWidth={2.5} className="text-destructive"/>
+                <ArrowUpRight size={20} strokeWidth={2.5} className="text-destructive" />
               </div>
               <p className="text-xs text-muted-foreground font-bold mb-1 uppercase tracking-wider">Egresos</p>
               <p className="text-lg font-bold text-foreground tracking-tight">
-                {loading ?"...": formatCurrency(balance?.expense || 0, currency)}
+                {loading ? "..." : formatCurrency(balance?.expense || 0, currency)}
               </p>
             </CardContent>
           </Card>

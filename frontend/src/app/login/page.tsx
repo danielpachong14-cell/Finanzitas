@@ -6,8 +6,10 @@ import { AuthService } from "@/core/auth/AuthService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/PasswordInput";
+import { FeedbackAlert } from "@/components/ui/FeedbackAlert";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, EyeOff, AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 type AuthView = "login" | "register" | "forgot_password" | "update_password";
 
@@ -24,10 +26,6 @@ function LoginFormContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  // UI state
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     // Exchange code for session if present (Supabase PKCE flow)
@@ -155,17 +153,8 @@ function LoginFormContent() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {error && (
-              <div className="mb-4 flex items-center gap-2 text-destructive bg-destructive/10 p-3 rounded-xl text-sm font-medium">
-                <AlertCircle className="w-4 h-4" />
-                {error}
-              </div>
-            )}
-            {successMsg && (
-              <div className="mb-4 flex items-center gap-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-3 rounded-xl text-sm font-medium">
-                {successMsg}
-              </div>
-            )}
+            {error && <FeedbackAlert type="error" message={error} />}
+            {successMsg && <FeedbackAlert type="success" message={successMsg} />}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {view === "register" && (
@@ -203,50 +192,26 @@ function LoginFormContent() {
                   <Label htmlFor="password" className="text-foreground font-semibold">
                     {view === "update_password" ? "Nueva Contraseña" : "Contraseña"}
                   </Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      required
-                      className="rounded-2xl bg-muted border-none focus-visible:ring-primary h-14 px-4 text-base pr-12"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading}
-                    />
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
+                  <PasswordInput
+                    id="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading}
+                  />
                 </div>
               )}
 
               {(view === "register" || view === "update_password") && (
                 <div className="space-y-2 mt-2">
                   <Label htmlFor="confirm_password" className="text-foreground font-semibold">Confirmar Contraseña</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirm_password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      required
-                      className="rounded-2xl bg-muted border-none focus-visible:ring-primary h-14 px-4 text-base pr-12"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      disabled={loading}
-                    />
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
+                  <PasswordInput
+                    id="confirm_password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={loading}
+                  />
                 </div>
               )}
 

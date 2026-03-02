@@ -3,108 +3,67 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ApiClient, Asset, Institution } from "@/core/api/ApiClient";
+import { useAssets, useInstitutions, PORTFOLIO_KEYS } from "@/core/hooks/useQueries";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUserOptions } from "@/core/context/UserContext";
 import { formatCurrency } from "@/lib/utils";
 import { Plus, Briefcase, Activity, Flame, ShieldAlert, PlusCircle, Building, Wallet, LayoutGrid, Pencil, Trash2, List, AlignJustify } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FinancialAssetDashboard } from "./FinancialAssetDashboard";
 import { PhysicalAssetCard } from "./PhysicalAssetCard";
+import dynamic from 'next/dynamic';
+import { Suspense } from "react";
+
+const InstitutionEditModal = dynamic(() => import('./InstitutionEditModal').then(mod => mod.InstitutionEditModal), {
+    ssr: false,
+});
+
+const AssetFormModal = dynamic(() => import('./AssetFormModal').then(mod => mod.AssetFormModal), {
+    ssr: true, // AssetFormModal might benefit from hydration earlier, but SSR disabled is generally safer for client-only modals. Let's keep it default.
+});
 
 export default function PortfolioPage() {
     const { currency } = useUserOptions();
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
 
-    // Data
-    const [assets, setAssets] = useState<Asset[]>([]);
-    const [institutions, setInstitutions] = useState<Institution[]>([]);
+    // Data via React Query
+    const { data: qAssets, isLoading: isLoadingAssets } = useAssets();
+    const { data: qInstitutions, isLoading: isLoadingInstitutions } = useInstitutions();
+
+    const loading = isLoadingAssets || isLoadingInstitutions;
+    const assets = qAssets || [];
+    const institutions = qInstitutions || [];
 
     // Active View Tab (Financial, Digital, Physical)
     const [activeTab, setActiveTab] = useState<'financial' | 'digital' | 'physical'>('financial');
 
     // Modal State
     const [showAddModal, setShowAddModal] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [newName, setNewName] = useState("");
-    const [newType, setNewType] = useState<'financial' | 'digital' | 'physical'>('financial');
-    const [newLiquidity, setNewLiquidity] = useState<'L1_immediate' | 'L2_medium' | 'L3_low'>('L1_immediate');
-    const [newVal, setNewVal] = useState("");
-    const [newRate, setNewRate] = useState("");
-    const [newInstitutionId, setNewInstitutionId] = useState("NONE");
-    const [creatingInstitution, setCreatingInstitution] = useState(false);
-    const [newInstName, setNewInstName] = useState("");
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
-    const [newOpeningDate, setNewOpeningDate] = useState("");
-    const [newIsPaymentAccount, setNewIsPaymentAccount] = useState(false);
     const [dashboardAsset, setDashboardAsset] = useState<Asset | null>(null);
-
-    // Physical Asset State
-    const [newPhysicalType, setNewPhysicalType] = useState<'real_estate' | 'vehicle' | 'business' | 'tech' | 'jewelry' | 'other'>('other');
-    const [newHasCredit, setNewHasCredit] = useState(false);
-    const [newCreditAmount, setNewCreditAmount] = useState("");
-    const [newCreditPaid, setNewCreditPaid] = useState("");
 
     // Edit Institution State
     const [showEditInstModal, setShowEditInstModal] = useState(false);
     const [editingInst, setEditingInst] = useState<Institution | null>(null);
-    const [editInstName, setEditInstName] = useState("");
 
     // Physical View State
     const [physicalSortBy, setPhysicalSortBy] = useState<'category' | 'alpha' | 'value_desc' | 'value_asc'>('category');
     const [physicalViewMode, setPhysicalViewMode] = useState<'list' | 'gallery'>('list');
 
-    const refreshData = async () => {
-        try {
-            const [loadedAssets, loadedInstitutions] = await Promise.all([
-                ApiClient.getAssets(),
-                ApiClient.getInstitutions()
-            ]);
-            setAssets(loadedAssets);
-            setInstitutions(loadedInstitutions);
-        } catch (error) {
-            console.error("Failed to refresh portfolio", error);
-        }
+    const invalidateData = async () => {
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: PORTFOLIO_KEYS.assets }),
+            queryClient.invalidateQueries({ queryKey: PORTFOLIO_KEYS.institutions })
+        ]);
     };
-
-    // Load Data
-    useEffect(() => {
-        async function loadPortfolio() {
-            setLoading(true);
-            await refreshData();
-            setLoading(false);
-        }
-        loadPortfolio();
-    }, []);
 
     const openAddModal = () => {
         setEditingAsset(null);
-        setNewName("");
-        setNewVal("");
-        setNewRate("");
-        setNewType(activeTab);
-        setNewLiquidity('L1_immediate');
-        setNewInstitutionId("NONE");
-        setNewOpeningDate(new Date().toISOString().split('T')[0]);
-        setNewIsPaymentAccount(false);
-        setNewPhysicalType('other');
-        setNewHasCredit(false);
-        setNewCreditAmount("");
-        setNewCreditPaid("");
         setShowAddModal(true);
     };
 
     const openEditModal = (asset: Asset) => {
         setEditingAsset(asset);
-        setNewName(asset.name);
-        setNewVal(asset.current_value.toString());
-        setNewRate(asset.interest_rate_nominal.toString());
-        setNewType(asset.type);
-        setNewLiquidity(asset.liquidity_layer);
-        setNewInstitutionId(asset.institution_id || "NONE");
-        setNewIsPaymentAccount(asset.is_payment_account || false);
-        setNewPhysicalType(asset.physical_type || 'other');
-        setNewHasCredit(asset.has_credit || false);
-        setNewCreditAmount(asset.credit_amount?.toString() || "");
-        setNewCreditPaid(asset.credit_paid?.toString() || "");
         setShowAddModal(true);
     };
 
@@ -120,128 +79,76 @@ export default function PortfolioPage() {
         if (!editingAsset) return;
         if (!confirm(`¿Estás seguro de eliminar el activo "${editingAsset.name}"?`)) return;
 
-        setSaving(true);
         try {
             await ApiClient.deleteAsset(editingAsset.id);
             setShowAddModal(false);
-            await refreshData();
+            await invalidateData();
         } catch (error) {
             console.error("Error deleting asset", error);
             alert("Error al eliminar activo");
-        } finally {
-            setSaving(false);
         }
     };
 
     const openEditInstModal = (inst: Institution) => {
         setEditingInst(inst);
-        setEditInstName(inst.name);
         setShowEditInstModal(true);
     };
 
-    const handleDeleteInst = async () => {
-        if (!editingInst) return;
-        if (!confirm(`¿Estás seguro de eliminar la entidad "${editingInst.name}"? Los activos vinculados pasarán a Posesión Propia.`)) return;
-
-        setSaving(true);
+    const handleDeleteInst = async (id: string) => {
         try {
-            await ApiClient.deleteInstitution(editingInst.id);
+            await ApiClient.deleteInstitution(id);
             setShowEditInstModal(false);
-            await refreshData();
+            await invalidateData();
         } catch (error) {
             console.error("Error deleting institution", error);
             alert("Error al eliminar entidad");
-        } finally {
-            setSaving(false);
         }
     };
 
-    const handleSaveInst = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!editingInst || !editInstName.trim()) return;
-        setSaving(true);
+    const handleSaveInst = async (id: string, newName: string) => {
         try {
-            await ApiClient.updateInstitution(editingInst.id, { name: editInstName.trim() });
+            await ApiClient.updateInstitution(id, { name: newName });
             setShowEditInstModal(false);
-            await refreshData();
+            await invalidateData();
         } catch (error) {
             console.error("Error updating institution", error);
             alert("Error al editar entidad");
-        } finally {
-            setSaving(false);
+            throw error;
         }
     };
 
-    const handleSaveAsset = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newName.trim() || !newVal) return;
-        setSaving(true);
+    const handleSaveAsset = async (payload: Partial<Asset>, instId: string, customInstName: string) => {
         try {
-            let instId = newInstitutionId;
+            let finalInstId = instId;
 
-            // Inline Institution creation
-            if (instId === "NEW" && newInstName.trim()) {
+            if (finalInstId === "NEW" && customInstName.trim()) {
                 const colors = ['#f43f5e', '#ec4899', '#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16', '#eab308', '#f59e0b', '#f97316', '#ef4444'];
                 const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
-                const inst = await ApiClient.createInstitution(newInstName.trim(), 'other', 'building', randomColor);
-                instId = inst.id;
+                const inst = await ApiClient.createInstitution(customInstName.trim(), 'other', 'building', randomColor);
+                finalInstId = inst.id;
             }
 
-            const payload: Partial<Asset> = {
-                name: newName,
-                type: newType,
-                liquidity_layer: newLiquidity,
-                current_value: parseFloat(newVal) || 0,
-                interest_rate_nominal: parseFloat(newRate) || 0,
-                institution_id: instId === "NONE" || instId === "NEW" ? null : instId,
-                is_payment_account: newIsPaymentAccount,
+            const completePayload = {
+                ...payload,
+                institution_id: finalInstId === "NONE" || finalInstId === "NEW" ? null : finalInstId,
             };
 
-            if (newType === 'physical') {
-                payload.physical_type = newPhysicalType;
-                payload.has_credit = newHasCredit;
-                if (newHasCredit) {
-                    payload.credit_amount = parseFloat(newCreditAmount) || 0;
-                    payload.credit_paid = parseFloat(newCreditPaid) || 0;
-                } else {
-                    payload.credit_amount = 0;
-                    payload.credit_paid = 0;
-                }
-            }
-
             if (editingAsset) {
-                await ApiClient.updateAsset(editingAsset.id, payload);
+                await ApiClient.updateAsset(editingAsset.id, completePayload);
             } else {
                 await ApiClient.createAsset({
                     currency: currency,
                     is_manual: true,
-                    opening_date: newType === 'financial' && newOpeningDate ? newOpeningDate : undefined,
-                    ...payload as any
+                    ...completePayload as any
                 });
             }
 
             setShowAddModal(false);
-
-            // Reset form
-            setNewName("");
-            setNewVal("");
-            setNewRate("");
-            setNewInstitutionId("NONE");
-            setNewInstName("");
-            setNewOpeningDate("");
-            setNewIsPaymentAccount(false);
-            setNewPhysicalType('other');
-            setNewHasCredit(false);
-            setNewCreditAmount("");
-            setNewCreditPaid("");
-
-            await refreshData();
+            await invalidateData();
         } catch (error) {
             console.error("Error saving asset", error);
             alert("Error al guardar activo");
-        } finally {
-            setSaving(false);
+            throw error;
         }
     };
 
@@ -652,293 +559,27 @@ export default function PortfolioPage() {
                     </div>
                 )}
 
-                {/* MODAL: EDIT INSTITUTION */}
-                {showEditInstModal && (
-                    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowEditInstModal(false)}></div>
-                        <div className="bg-card w-full sm:w-[500px] h-auto rounded-t-[32px] sm:rounded-[36px] p-6 sm:p-8 relative z-10 flex flex-col animate-in slide-in-from-bottom-5 border border-border/20">
-                            <div className="w-16 h-1.5 bg-muted rounded-full mx-auto mb-8 sm:hidden"></div>
+                <Suspense fallback={null}>
+                    <InstitutionEditModal
+                        isOpen={showEditInstModal}
+                        institution={editingInst}
+                        onClose={() => setShowEditInstModal(false)}
+                        onSave={handleSaveInst}
+                        onDelete={handleDeleteInst}
+                    />
+                </Suspense>
 
-                            <div className="flex justify-between items-center mb-6 shrink-0">
-                                <h2 className="text-2xl font-bold text-foreground">Editar Entidad</h2>
-                                <Button type="button" variant="ghost" onClick={handleDeleteInst} className="text-destructive hover:bg-destructive/10 hover:text-destructive rounded-xl p-2 h-auto">
-                                    <Trash2 size={20} />
-                                </Button>
-                            </div>
-
-                            <form onSubmit={handleSaveInst} className="flex flex-col space-y-6">
-                                <div>
-                                    <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Nombre de Entidad / Custodio</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={editInstName}
-                                        onChange={e => setEditInstName(e.target.value)}
-                                        placeholder="Ej. NuBank, JPMorgan..."
-                                        className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg"
-                                    />
-                                </div>
-
-                                <div className="pt-6 border-t border-border/50 flex gap-3 shrink-0 mt-8">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => setShowEditInstModal(false)}
-                                        className="flex-1 h-14 rounded-2xl text-muted-foreground font-bold border-border/50 bg-card hover:bg-muted"
-                                        disabled={saving}
-                                    >
-                                        Cancelar
-                                    </Button>
-                                    <Button
-                                        type="submit"
-                                        className="flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold transition-all hover:-translate-y-0.5"
-                                        disabled={saving || !editInstName.trim()}
-                                    >
-                                        {saving ? 'Guardando...' : 'Guardar Edición'}
-                                    </Button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {/* MODAL: ADD ASSET */}
-                {showAddModal && (
-                    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowAddModal(false)}></div>
-                        <div className="bg-card w-full sm:w-[500px] h-[90vh] sm:h-auto sm:max-h-[85vh] rounded-t-[32px] sm:rounded-[36px] p-6 sm:p-8 relative z-10 flex flex-col animate-in slide-in-from-bottom-5 border border-border/20">
-                            <div className="w-16 h-1.5 bg-muted rounded-full mx-auto mb-8 sm:hidden"></div>
-
-                            <div className="flex justify-between items-center mb-6 shrink-0">
-                                <h2 className="text-2xl font-bold text-foreground">{editingAsset ? 'Editar Activo' : 'Añadir Activo'}</h2>
-                                {editingAsset && (
-                                    <Button type="button" variant="ghost" onClick={handleDeleteAsset} className="text-destructive hover:bg-destructive/10 hover:text-destructive rounded-xl">
-                                        Eliminar
-                                    </Button>
-                                )}
-                            </div>
-
-                            <form onSubmit={handleSaveAsset} className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar pb-6 relative">
-                                <div>
-                                    <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Nombre del Activo</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={newName}
-                                        onChange={e => setNewName(e.target.value)}
-                                        placeholder="Ej. Cuenta Ahorros Bancolombia"
-                                        className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg"
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className={newType === 'financial' && !editingAsset ? 'col-span-1' : 'col-span-2'}>
-                                        <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Valor Actual / Balance Inicial</label>
-                                        <input
-                                            type="number"
-                                            required
-                                            step="0.01"
-                                            value={newVal}
-                                            onChange={e => setNewVal(e.target.value)}
-                                            placeholder="0.00"
-                                            className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg"
-                                        />
-                                    </div>
-                                    {newType === 'financial' && !editingAsset && (
-                                        <div className="col-span-1">
-                                            <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Fecha de Apertura</label>
-                                            <input
-                                                type="date"
-                                                required
-                                                value={newOpeningDate}
-                                                onChange={e => setNewOpeningDate(e.target.value)}
-                                                className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-sm appearance-none"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Rendimiento (EA %)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={newRate}
-                                            onChange={e => setNewRate(e.target.value)}
-                                            placeholder="0.0"
-                                            className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col justify-end pb-2">
-                                        <label className="flex items-center gap-3 cursor-pointer group">
-                                            <div className="relative">
-                                                <input
-                                                    type="checkbox"
-                                                    className="sr-only"
-                                                    checked={newIsPaymentAccount}
-                                                    onChange={e => setNewIsPaymentAccount(e.target.checked)}
-                                                />
-                                                <div className={`block w-14 h-8 rounded-full transition-colors ${newIsPaymentAccount ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
-                                                <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${newIsPaymentAccount ? 'translate-x-6' : ''}`}></div>
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-foreground text-sm">Usar para Pagos</p>
-                                                <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">Permite vincular transacciones</p>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Tipo</label>
-                                        <select
-                                            value={newType}
-                                            onChange={e => {
-                                                setNewType(e.target.value as any);
-                                                // Default physical type when choosing physical
-                                                if (e.target.value === 'physical' && newPhysicalType === 'other') {
-                                                    setNewPhysicalType('real_estate');
-                                                }
-                                            }}
-                                            className="w-full h-14 bg-muted border border-transparent rounded-2xl px-4 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-sm appearance-none"
-                                        >
-                                            <option value="financial">Financiero</option>
-                                            <option value="digital">Digital (Crypto/Bolsa)</option>
-                                            <option value="physical">Físico (Bienes)</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Liquidez</label>
-                                        <select
-                                            value={newLiquidity}
-                                            onChange={e => setNewLiquidity(e.target.value as any)}
-                                            className="w-full h-14 bg-muted border border-transparent rounded-2xl px-4 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-sm appearance-none"
-                                        >
-                                            <option value="L1_immediate">L1 Inmediata (24hr)</option>
-                                            <option value="L2_medium">L2 Media (2-7 días)</option>
-                                            <option value="L3_low">L3 Baja (Meses)</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {newType === 'physical' && (
-                                    <>
-                                        <div>
-                                            <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Tipología de Bien Físico</label>
-                                            <select
-                                                value={newPhysicalType}
-                                                onChange={e => setNewPhysicalType(e.target.value as any)}
-                                                className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-base appearance-none"
-                                            >
-                                                <option value="real_estate">Inmueble / Bien Raíz</option>
-                                                <option value="vehicle">Vehículo</option>
-                                                <option value="business">Empresa / Negocio</option>
-                                                <option value="tech">Tecnología / Equipos</option>
-                                                <option value="jewelry">Joyería / Arte</option>
-                                                <option value="other">Otro Bien</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="bg-muted/50 border border-border/50 rounded-2xl p-5 space-y-5">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <p className="font-bold text-foreground text-sm">¿Financiado / Apalancado?</p>
-                                                    <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Control de deudas sobre este activo</p>
-                                                </div>
-                                                <div className="relative cursor-pointer" onClick={() => setNewHasCredit(!newHasCredit)}>
-                                                    <div className={`block w-14 h-8 rounded-full transition-colors ${newHasCredit ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
-                                                    <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${newHasCredit ? 'translate-x-6' : ''}`}></div>
-                                                </div>
-                                            </div>
-
-                                            {newHasCredit && (
-                                                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/50">
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Monto Deuda Inicial</label>
-                                                        <input
-                                                            type="number"
-                                                            required={newHasCredit}
-                                                            min="0"
-                                                            step="0.01"
-                                                            value={newCreditAmount}
-                                                            onChange={e => setNewCreditAmount(e.target.value)}
-                                                            placeholder="0.00"
-                                                            className="w-full h-11 bg-card border border-border/50 rounded-xl px-3 text-foreground font-bold outline-none focus:border-primary/50 transition-all text-sm"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-emerald-500 mb-1.5 ml-1">Total Pagado Aportado</label>
-                                                        <input
-                                                            type="number"
-                                                            required={newHasCredit}
-                                                            min="0"
-                                                            step="0.01"
-                                                            value={newCreditPaid}
-                                                            onChange={e => setNewCreditPaid(e.target.value)}
-                                                            placeholder="0.00"
-                                                            className="w-full h-11 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 text-emerald-600 dark:text-emerald-400 font-bold outline-none focus:border-emerald-500 transition-all text-sm"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-
-                                <div>
-                                    <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Custodio / Entidad</label>
-                                    <select
-                                        value={newInstitutionId}
-                                        onChange={e => {
-                                            setNewInstitutionId(e.target.value);
-                                            setCreatingInstitution(e.target.value === 'NEW');
-                                        }}
-                                        className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-base appearance-none"
-                                    >
-                                        <option value="NONE">Ninguno / Posesión Propia</option>
-                                        {institutions.map(inst => (
-                                            <option key={inst.id} value={inst.id}>{inst.name}</option>
-                                        ))}
-                                        <option value="NEW">+ Añadir nueva entidad...</option>
-                                    </select>
-                                </div>
-
-                                {creatingInstitution && (
-                                    <div className="animate-in fade-in slide-in-from-top-2">
-                                        <input
-                                            type="text"
-                                            required
-                                            value={newInstName}
-                                            onChange={e => setNewInstName(e.target.value)}
-                                            placeholder="Nombre de la nueva entidad (ej. JPMorgan)"
-                                            className="w-full h-14 bg-card border border-primary/30 rounded-2xl px-5 text-foreground font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm"
-                                        />
-                                    </div>
-                                )}
-
-                                <div className="pt-6 border-t border-border/50 flex gap-3 shrink-0 mt-8">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => setShowAddModal(false)}
-                                        className="flex-1 h-14 rounded-2xl text-muted-foreground font-bold border-border/50 bg-card hover:bg-muted"
-                                        disabled={saving}
-                                    >
-                                        Cancelar
-                                    </Button>
-                                    <Button
-                                        type="submit"
-                                        className="flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold transition-all hover:-translate-y-0.5"
-                                        disabled={saving || !newName.trim() || !newVal}
-                                    >
-                                        {saving ? 'Guardando...' : 'Guardar Activo'}
-                                    </Button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
+                <Suspense fallback={null}>
+                    <AssetFormModal
+                        isOpen={showAddModal}
+                        editingAsset={editingAsset}
+                        institutions={institutions}
+                        activeTab={activeTab}
+                        onClose={() => setShowAddModal(false)}
+                        onSave={handleSaveAsset}
+                        onDelete={editingAsset ? handleDeleteAsset : undefined}
+                    />
+                </Suspense>
 
                 {/* ADVANCED FINANCIAL DASHBOARD */}
                 {dashboardAsset && (
@@ -946,7 +587,7 @@ export default function PortfolioPage() {
                         asset={dashboardAsset}
                         currency={currency}
                         onClose={() => setDashboardAsset(null)}
-                        onUpdate={refreshData}
+                        onUpdate={invalidateData}
                         onEdit={() => openEditModal(dashboardAsset)}
                     />
                 )}

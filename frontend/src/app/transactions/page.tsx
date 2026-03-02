@@ -1,34 +1,21 @@
 "use client";
 
-import { useEffect, useState } from"react";
-import { useRouter } from"next/navigation";
-import { AppLayout } from"@/components/layout/AppLayout";
-import { formatCurrency } from"@/lib/utils";
-import { ApiClient, Transaction } from"@/core/api/ApiClient";
-import { ArrowLeft, Download, Search, Filter } from"lucide-react";
-import { Input } from"@/components/ui/input";
-import { useUserOptions } from"@/core/context/UserContext";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { formatCurrency } from "@/lib/utils";
+import { ApiClient, Transaction } from "@/core/api/ApiClient";
+import { useTransactions } from "@/core/hooks/useQueries";
+import { ArrowLeft, Download, Search, Filter } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useUserOptions } from "@/core/context/UserContext";
 
 export default function TransactionsHistoryPage() {
   const router = useRouter();
   const { currency } = useUserOptions();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: transactionsData, isLoading: loading } = useTransactions();
+  const transactions = transactionsData || [];
   const [searchTerm, setSearchTerm] = useState("");
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const data = await ApiClient.getTransactions();
-        setTransactions(data);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
 
   const formatDate = (isoString: string) => {
     const date = new Date(isoString);
@@ -81,7 +68,7 @@ export default function TransactionsHistoryPage() {
             onClick={() => router.back()}
             className="p-3 bg-muted rounded-full hover:bg-muted-foreground/10 transition-colors"
           >
-            <ArrowLeft size={20} className="text-foreground"/>
+            <ArrowLeft size={20} className="text-foreground" />
           </button>
           <h1 className="text-xl font-bold text-foreground">Movimientos</h1>
           <button
@@ -97,7 +84,7 @@ export default function TransactionsHistoryPage() {
           {/* Search & Filter Bar */}
           <div className="flex space-x-3 mb-6">
             <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/50"size={20} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/50" size={20} />
               <Input
                 type="text"
                 placeholder="Buscar comercio o categoría..."
