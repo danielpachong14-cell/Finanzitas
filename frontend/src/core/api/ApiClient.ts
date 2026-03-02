@@ -1,0 +1,604 @@
+import { supabase } from './supabase';
+
+export interface Category {
+    id: string;
+    user_id?: string;
+    name: string;
+    type: 'income' | 'expense';
+    color: string;
+    icon: string;
+    icon_color: string;
+    monthly_limit: number;
+    parent_id?: string | null;
+}
+
+export interface UserSettings {
+    user_id: string;
+    main_currency: string;
+    theme: string;
+}
+
+export interface Transaction {
+    id: string;
+    amount: number;
+    date: string;
+    category: string;
+    subcategory?: string;
+    merchant?: string;
+    paymentMethod?: string;
+    asset_id?: string;
+    payment_type?: 'debit' | 'credit';
+    type: 'income' | 'expense';
+    description?: string;
+    linked_asset_debt_id?: string;
+}
+
+export interface Balance {
+    total: number;
+    income: number;
+    expense: number;
+}
+
+export interface Institution {
+    id: string;
+    user_id?: string;
+    name: string;
+    type: 'bank' | 'broker' | 'crypto_exchange' | 'real_estate' | 'other';
+    icon: string;
+    color: string;
+}
+
+export interface Asset {
+    id: string;
+    user_id?: string;
+    institution_id?: string | null;
+    name: string;
+    type: 'financial' | 'digital' | 'physical';
+    physical_type?: 'real_estate' | 'vehicle' | 'business' | 'tech' | 'jewelry' | 'other' | null;
+    liquidity_layer: 'L1_immediate' | 'L2_medium' | 'L3_low';
+    currency: string;
+    current_value: number;
+    interest_rate_nominal: number;
+    opening_date?: string;
+    is_manual: boolean;
+    is_payment_account?: boolean;
+    has_credit?: boolean;
+    credit_amount?: number;
+    credit_paid?: number;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface AssetSnapshot {
+    id: string;
+    asset_id: string;
+    value: number;
+    recorded_at: string;
+}
+
+export interface AssetMovement {
+    id: string;
+    asset_id: string;
+    user_id?: string;
+    type: 'deposit' | 'withdrawal' | 'adjustment';
+    amount: number;
+    date: string;
+    description?: string;
+    created_at?: string;
+}
+
+export class ApiClient {
+    // --- Transactions & Balance ---
+
+    static async getBalance(): Promise<Balance> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { total: 0, income: 0, expense: 0 };
+
+        const { data, error } = await supabase
+            .from('transactions')
+            .select('amount, type')
+            .eq('user_id', user.id);
+
+        if (error) {
+            console.error('Error fetching balance:', error);
+            return { total: 0, income: 0, expense: 0 };
+        }
+
+        const income = data.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+        const expense = data.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+
+        return {
+            total: income - expense,
+            income,
+            expense
+        };
+    }
+
+    static async getTransactions(): Promise<Transaction[]> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+
+        const { data, error } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching transactions:', error);
+            return [];
+        }
+
+        return data.map(t => ({
+            id: t.id,
+            amount: Number(t.amount),
+            date: t.date,
+            category: t.category,
+            subcategory: t.subcategory,
+            merchant: t.merchant,
+            paymentMethod: t.payment_method,
+            asset_id: t.asset_id,
+            payment_type: t.payment_type,
+            type: t.type,
+            description: t.description,
+            linked_asset_debt_id: t.linked_asset_debt_id
+        }));
+    }
+
+    static async createTransaction(tx: Omit<Transaction, 'id'>): Promise<Transaction | null> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        let finalCategory = tx.category;
+
+        // Verify if the category exists in the user's categories.
+        // If it doesn't, we fallback to 'Otros'.
+        const categories = await this.getCategories();
+        const categoryExists = categories.some(c => c.name.toLowerCase() === tx.category.toLowerCase() && c.type === tx.type);
+
+        if (!categoryExists) {
+            finalCategory = "Otros";
+        }
+
+        const newTxData = {
+            user_id: user.id,
+            amount: tx.amount,
+            date: tx.date,
+            category: finalCategory,
+            subcategory: tx.subcategory || null,
+            merchant: tx.merchant || null,
+            payment_method: tx.paymentMethod || null,
+            asset_id: tx.asset_id || null,
+            payment_type: tx.payment_type || null,
+            type: tx.type,
+            description: tx.description || null,
+            linked_asset_debt_id: tx.linked_asset_debt_id || null
+        };
+
+        const { data, error } = await supabase
+            .from('transactions')
+            .insert(newTxData)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error creating transaction:', error);
+            throw error;
+        }
+
+        // --- ASSET DEBIT LOGIC ---
+        if (tx.asset_id && tx.payment_type === 'debit') {
+            try {
+                // Fetch current asset
+                const { data: assetData } = await supabase.from('assets').select('current_value').eq('id', tx.asset_id).single();
+                if (assetData) {
+                    const movementType = tx.type === 'expense' ? 'withdrawal' : 'deposit';
+                    const newCurrentValue = tx.type === 'expense'
+                        ? Number(assetData.current_value) - tx.amount
+                        : Number(assetData.current_value) + tx.amount;
+
+                    // Create movement
+                    await ApiClient.createAssetMovement(
+                        tx.asset_id,
+                        movementType,
+                        tx.amount,
+                        tx.date,
+                        tx.description || `Transacción: ${tx.merchant || tx.category}`
+                    );
+
+                    // Update asset value
+                    await ApiClient.updateAsset(tx.asset_id, {
+                        current_value: newCurrentValue
+                    });
+                }
+            } catch (err) {
+                console.error("Error updating asset balance:", err);
+            }
+        }
+
+        // --- ASSET DEBT (PHYSICAL) LOGIC ---
+        if (tx.linked_asset_debt_id && tx.type === 'expense') {
+            try {
+                // Fetch the referenced physical asset
+                const { data: debtAsset } = await supabase.from('assets').select('credit_paid, has_credit').eq('id', tx.linked_asset_debt_id).single();
+                if (debtAsset && debtAsset.has_credit) {
+                    const currentPaid = Number(debtAsset.credit_paid || 0);
+                    await ApiClient.updateAsset(tx.linked_asset_debt_id, {
+                        credit_paid: currentPaid + tx.amount
+                    });
+                }
+            } catch (err) {
+                console.error("Error updating linked physical asset debt:", err);
+            }
+        }
+
+        return {
+            id: data.id,
+            amount: Number(data.amount),
+            date: data.date,
+            category: data.category,
+            subcategory: data.subcategory,
+            merchant: data.merchant,
+            paymentMethod: data.payment_method,
+            asset_id: data.asset_id,
+            payment_type: data.payment_type,
+            type: data.type,
+            description: data.description,
+            linked_asset_debt_id: data.linked_asset_debt_id
+        };
+    }
+
+    // --- Categories ---
+
+    static async getCategories(): Promise<Category[]> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+
+        const { data, error } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('name', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching categories:', error);
+            return [];
+        }
+
+        return data as Category[];
+    }
+
+    static async createCategory(
+        name: string,
+        type: 'income' | 'expense',
+        monthly_limit: number = 0,
+        parent_id: string | null = null,
+        color: string = '#718096',
+        icon: string = 'tag',
+        icon_color: string = '#ffffff'
+    ): Promise<Category> {
+        const { data: { session }, error: authError } = await supabase.auth.getSession();
+        if (authError || !session) throw new Error("No user session found");
+
+        const { data, error } = await supabase
+            .from('categories')
+            .insert({
+                user_id: session.user.id,
+                name,
+                type,
+                color,
+                icon,
+                icon_color,
+                monthly_limit,
+                parent_id
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as Category;
+    }
+
+    static async updateCategory(id: string, updates: Partial<Category>): Promise<Category> {
+        const { data, error } = await supabase
+            .from('categories')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as Category;
+    }
+
+    static async deleteCategory(id: string): Promise<void> {
+        const { error } = await supabase
+            .from('categories')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
+
+    // --- User Settings ---
+
+    static async getUserSettings(): Promise<UserSettings | null> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+
+        const { data, error } = await supabase
+            .from('user_settings')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Error fetching user settings:', error);
+            return null;
+        }
+
+        // If no settings exist yet, we can return a default
+        if (!data) {
+            return {
+                user_id: user.id,
+                main_currency: 'USD',
+                theme: 'system'
+            };
+        }
+
+        return data as UserSettings;
+    }
+
+    static async updateUserSettings(settings: Partial<UserSettings>): Promise<UserSettings> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        // Upsert to handle the case where the row doesn't exist yet
+        const { data, error } = await supabase
+            .from('user_settings')
+            .upsert({
+                user_id: user.id,
+                ...settings,
+                updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as UserSettings;
+    }
+
+    // --- Wealth Command Center (Assets & Institutions) ---
+
+    static async getInstitutions(): Promise<Institution[]> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+
+        const { data, error } = await supabase
+            .from('institutions')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('name', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching institutions:', error);
+            return [];
+        }
+
+        return data as Institution[];
+    }
+
+    static async createInstitution(
+        name: string,
+        type: 'bank' | 'broker' | 'crypto_exchange' | 'real_estate' | 'other',
+        icon: string = 'building',
+        color: string = '#888888'
+    ): Promise<Institution> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const { data, error } = await supabase
+            .from('institutions')
+            .insert({
+                user_id: user.id,
+                name,
+                type,
+                icon,
+                color
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as Institution;
+    }
+
+    static async updateInstitution(id: string, updates: Partial<Institution>): Promise<Institution> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const { data, error } = await supabase
+            .from('institutions')
+            .update(updates)
+            .eq('id', id)
+            .eq('user_id', user.id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as Institution;
+    }
+
+    static async deleteInstitution(id: string): Promise<void> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const { error } = await supabase
+            .from('institutions')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+        if (error) throw error;
+    }
+
+    static async getAssets(): Promise<Asset[]> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+
+        const { data, error } = await supabase
+            .from('assets')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching assets:', error);
+            return [];
+        }
+
+        return data as Asset[];
+    }
+
+    static async createAsset(assetData: Omit<Asset, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<Asset> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const { data, error } = await supabase
+            .from('assets')
+            .insert({
+                user_id: user.id,
+                ...assetData
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Record initial snapshot
+        await supabase.from('asset_snapshots').insert({
+            asset_id: data.id,
+            value: data.current_value
+        });
+
+        // Initialize with a deposit if it's a financial asset with an opening date
+        if (data.type === 'financial' && data.opening_date) {
+            await this.createAssetMovement(
+                data.id,
+                'deposit',
+                data.current_value,
+                data.opening_date,
+                'Fondeo Inicial'
+            );
+        }
+
+        return data as Asset;
+    }
+
+    static async updateAsset(id: string, updates: Partial<Asset>): Promise<Asset> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const { data, error } = await supabase
+            .from('assets')
+            .update({
+                ...updates,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Automatically write a snapshot if value updated
+        if (updates.current_value !== undefined) {
+            await supabase.from('asset_snapshots').insert({
+                asset_id: data.id,
+                value: data.current_value
+            });
+        }
+
+        return data as Asset;
+    }
+
+    static async deleteAsset(id: string): Promise<void> {
+        // Delete dependent records first
+        await supabase.from('asset_snapshots').delete().eq('asset_id', id);
+        await supabase.from('asset_movements').delete().eq('asset_id', id);
+
+        const { error } = await supabase
+            .from('assets')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
+
+    static async getAssetSnapshots(assetId: string): Promise<AssetSnapshot[]> {
+        const { data, error } = await supabase
+            .from('asset_snapshots')
+            .select('*')
+            .eq('asset_id', assetId)
+            .order('recorded_at', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching snapshots:', error);
+            return [];
+        }
+
+        return data as AssetSnapshot[];
+    }
+
+    // --- Asset Movements ---
+    static async getAssetMovements(assetId: string): Promise<AssetMovement[]> {
+        const { data, error } = await supabase
+            .from('asset_movements')
+            .select('*')
+            .eq('asset_id', assetId)
+            .order('date', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching asset movements:', error);
+            return [];
+        }
+
+        return data as AssetMovement[];
+    }
+
+    static async createAssetMovement(
+        assetId: string,
+        type: 'deposit' | 'withdrawal' | 'adjustment',
+        amount: number,
+        date: string,
+        description?: string
+    ): Promise<AssetMovement> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const { data, error } = await supabase
+            .from('asset_movements')
+            .insert({
+                user_id: user.id,
+                asset_id: assetId,
+                type,
+                amount,
+                date,
+                description
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as AssetMovement;
+    }
+
+    static async deleteAssetMovement(id: string): Promise<void> {
+        const { error } = await supabase
+            .from('asset_movements')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
+}
