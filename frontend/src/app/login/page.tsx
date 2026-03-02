@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from"react";
-import { useRouter } from"next/navigation";
-import { AuthService } from"@/core/auth/AuthService";
-import { Button } from"@/components/ui/button";
-import { Input } from"@/components/ui/input";
-import { Label } from"@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from"@/components/ui/card";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { AuthService } from "@/core/auth/AuthService";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,6 +32,9 @@ export default function LoginPage() {
     }
   };
 
+
+
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -53,7 +56,7 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email"className="text-foreground font-semibold">Correo Electrónico</Label>
+                <Label htmlFor="email" className="text-foreground font-semibold">Correo Electrónico</Label>
                 <Input
                   id="email"
                   type="email"
@@ -66,7 +69,7 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2 mt-2">
-                <Label htmlFor="password"className="text-foreground font-semibold">Contraseña</Label>
+                <Label htmlFor="password" className="text-foreground font-semibold">Contraseña</Label>
                 <Input
                   id="password"
                   type="password"
@@ -82,13 +85,13 @@ export default function LoginPage() {
                 className="w-full rounded-full bg-primary hover:bg-primary/90 text-primary-foreground py-7 h-14 text-lg font-bold transition-all hover: hover:-translate-y-1 mt-6"
                 disabled={loading}
               >
-                {loading ?"Ingresando...":"Ingresar"}
+                {loading ? "Ingresando..." : "Ingresar"}
               </Button>
             </form>
           </CardContent>
           <CardFooter className="flex justify-center mt-4">
             <p className="text-sm text-muted-foreground">
-              ¿No tienes cuenta? <a href="#"className="text-primary hover:underline font-bold">Regístrate</a>
+              ¿No tienes cuenta? <a href="#" className="text-primary hover:underline font-bold">Regístrate</a>
             </p>
           </CardFooter>
         </Card>

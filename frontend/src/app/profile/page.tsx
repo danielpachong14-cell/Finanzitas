@@ -1,11 +1,11 @@
 "use client";
 
-import { AppLayout } from"@/components/layout/AppLayout";
-import { User, Settings, LogOut, FileText, Globe } from"lucide-react";
-import { useUserOptions } from"@/core/context/UserContext";
-import { useEffect, useState } from"react";
-import { supabase } from"@/core/api/supabase";
-import { useRouter } from"next/navigation";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { User, Settings, LogOut, FileText, Globe } from "lucide-react";
+import { useUserOptions } from "@/core/context/UserContext";
+import { useEffect, useState } from "react";
+import { supabase } from "@/core/api/supabase";
+import { useRouter } from "next/navigation";
 
 export default function ProfilePage() {
   const { currency, setCurrency, theme, setTheme, loading: optionsLoading } = useUserOptions();
@@ -16,7 +16,7 @@ export default function ProfilePage() {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        setUserEmail(user.email ||"Usuario");
+        setUserEmail(user.email || "Usuario");
       }
     };
     getUser();
@@ -26,6 +26,8 @@ export default function ProfilePage() {
     await supabase.auth.signOut();
     router.push('/login');
   };
+
+
 
   const currencies = [
     { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -44,7 +46,7 @@ export default function ProfilePage() {
 
         <div className="flex items-center space-x-4 mb-8 bg-card p-4 rounded-[28px] border border-border/50">
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-primary-foreground text-2xl font-bold uppercase">
-            {userEmail !=="Cargando..."? userEmail.substring(0, 2) :"U"}
+            {userEmail !== "Cargando..." ? userEmail.substring(0, 2) : "U"}
           </div>
           <div>
             <h2 className="text-xl font-bold text-foreground truncate max-w-[200px]">{userEmail.split('@')[0]}</h2>
@@ -56,7 +58,7 @@ export default function ProfilePage() {
           <div className="w-full flex items-center justify-between p-5 bg-card rounded-[24px] border border-border/50 hover: transition-shadow">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-                <Globe size={24} className="text-primary"/>
+                <Globe size={24} className="text-primary" />
               </div>
               <div className="text-left">
                 <span className="block font-bold text-foreground text-lg leading-tight">Divisa Principal</span>
@@ -78,7 +80,7 @@ export default function ProfilePage() {
           <div className="w-full flex items-center justify-between p-5 bg-card rounded-[24px] border border-border/50 transition-shadow">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center shrink-0">
-                <Settings size={24} className="text-foreground"/>
+                <Settings size={24} className="text-foreground" />
               </div>
               <div className="text-left">
                 <span className="block font-bold text-foreground text-lg leading-tight">Modo Oscuro</span>
@@ -98,7 +100,7 @@ export default function ProfilePage() {
           <button className="w-full flex items-center justify-between p-5 bg-card rounded-[24px] border border-border/50 hover: hover:bg-muted/30 transition-all group">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-muted-foreground/10 transition-colors shrink-0">
-                <FileText size={24} className="text-foreground"/>
+                <FileText size={24} className="text-foreground" />
               </div>
               <span className="font-bold text-foreground text-lg">Exportar Datos</span>
             </div>
