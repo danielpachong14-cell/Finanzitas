@@ -36,11 +36,11 @@ export default function DashboardPage() {
     const expense = filteredTx.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
 
     setBalance({
-      total: rawBalance?.total || (income - expense), // Fallback to calculated if raw is missing
+      total: income - expense, // Strictly the net flow of the selected month
       income,
       expense
     });
-  }, [selectedMonth, selectedYear, rawTransactions, rawBalance]);
+  }, [selectedMonth, selectedYear, rawTransactions]);
 
   const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
