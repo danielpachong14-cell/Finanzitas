@@ -248,6 +248,230 @@ export class ApiClient {
         };
     }
 
+    static async getTransactionById(id: string): Promise<Transaction | null> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+
+        const { data, error } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('id', id)
+            .eq('user_id', user.id)
+            .single();
+
+        if (error || !data) return null;
+
+        return {
+            id: data.id,
+            amount: Number(data.amount),
+            date: data.date,
+            category: data.category,
+            subcategory: data.subcategory,
+            merchant: data.merchant,
+            paymentMethod: data.payment_method,
+            asset_id: data.asset_id,
+            payment_type: data.payment_type,
+            type: data.type,
+            description: data.description,
+            linked_asset_debt_id: data.linked_asset_debt_id
+        };
+    }
+
+    static async updateTransaction(id: string, updates: Partial<Transaction>): Promise<Transaction> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        // 1. Fetch the OLD transaction to revert any asset balances
+        const oldTx = await this.getTransactionById(id);
+        if (!oldTx) throw new Error("Transaction not found");
+
+        // 2. REVERT OLD ASSET BALANCE
+        if (oldTx.asset_id && oldTx.payment_type === 'debit') {
+            try {
+                const { data: assetData } = await supabase.from('assets').select('current_value').eq('id', oldTx.asset_id).single();
+                if (assetData) {
+                    // Reverse the operation: if it was an expense, we add it back. If it was income, we subtract it.
+                    const newCurrentValue = oldTx.type === 'expense'
+                        ? Number(assetData.current_value) + oldTx.amount
+                        : Number(assetData.current_value) - oldTx.amount;
+
+                    await ApiClient.updateAsset(oldTx.asset_id, { current_value: newCurrentValue });
+                    // Provide a reversal movement
+                    await ApiClient.createAssetMovement(
+                        oldTx.asset_id,
+                        'adjustment',
+                        oldTx.amount,
+                        new Date().toISOString().split('T')[0],
+                        `Reversión por edición de transacción`
+                    );
+                }
+            } catch (err) {
+                console.error("Error reverting old asset balance:", err);
+            }
+        }
+
+        // REVERT OLD PHYSICAL DEBT BALANCE
+        if (oldTx.linked_asset_debt_id && oldTx.type === 'expense') {
+            try {
+                const { data: debtAsset } = await supabase.from('assets').select('credit_paid, has_credit').eq('id', oldTx.linked_asset_debt_id).single();
+                if (debtAsset && debtAsset.has_credit) {
+                    const currentPaid = Number(debtAsset.credit_paid || 0);
+                    // Subtract what was previously paid
+                    await ApiClient.updateAsset(oldTx.linked_asset_debt_id, {
+                        credit_paid: Math.max(0, currentPaid - oldTx.amount)
+                    });
+                }
+            } catch (err) {
+                console.error("Error reverting old linked physical asset debt:", err);
+            }
+        }
+
+        // 3. APPLY NEW UPDATES TO DB
+        const mappedUpdates: any = {};
+        if (updates.amount !== undefined) mappedUpdates.amount = updates.amount;
+        if (updates.date !== undefined) mappedUpdates.date = updates.date;
+        if (updates.category !== undefined) mappedUpdates.category = updates.category;
+        if (updates.subcategory !== undefined) mappedUpdates.subcategory = updates.subcategory;
+        if (updates.merchant !== undefined) mappedUpdates.merchant = updates.merchant;
+        if (updates.paymentMethod !== undefined) mappedUpdates.payment_method = updates.paymentMethod;
+        if (updates.asset_id !== undefined) mappedUpdates.asset_id = updates.asset_id;
+        if (updates.payment_type !== undefined) mappedUpdates.payment_type = updates.payment_type;
+        if (updates.type !== undefined) mappedUpdates.type = updates.type;
+        if (updates.description !== undefined) mappedUpdates.description = updates.description;
+        if (updates.linked_asset_debt_id !== undefined) mappedUpdates.linked_asset_debt_id = updates.linked_asset_debt_id;
+
+        const { data, error } = await supabase
+            .from('transactions')
+            .update(mappedUpdates)
+            .eq('id', id)
+            .eq('user_id', user.id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error updating transaction:', error);
+            throw error;
+        }
+
+        const updatedTx: Transaction = {
+            id: data.id,
+            amount: Number(data.amount),
+            date: data.date,
+            category: data.category,
+            subcategory: data.subcategory,
+            merchant: data.merchant,
+            paymentMethod: data.payment_method,
+            asset_id: data.asset_id,
+            payment_type: data.payment_type,
+            type: data.type,
+            description: data.description,
+            linked_asset_debt_id: data.linked_asset_debt_id
+        };
+
+        // 4. APPLY NEW ASSET BALANCE
+        if (updatedTx.asset_id && updatedTx.payment_type === 'debit') {
+            try {
+                const { data: assetData } = await supabase.from('assets').select('current_value').eq('id', updatedTx.asset_id).single();
+                if (assetData) {
+                    const movementType = updatedTx.type === 'expense' ? 'withdrawal' : 'deposit';
+                    const newCurrentValue = updatedTx.type === 'expense'
+                        ? Number(assetData.current_value) - updatedTx.amount
+                        : Number(assetData.current_value) + updatedTx.amount;
+
+                    await ApiClient.createAssetMovement(
+                        updatedTx.asset_id,
+                        movementType,
+                        updatedTx.amount,
+                        updatedTx.date,
+                        updatedTx.description || `Transacción Editada: ${updatedTx.merchant || updatedTx.category}`
+                    );
+
+                    await ApiClient.updateAsset(updatedTx.asset_id, {
+                        current_value: newCurrentValue
+                    });
+                }
+            } catch (err) {
+                console.error("Error applying new asset balance:", err);
+            }
+        }
+
+        // APPLY NEW PHYSICAL DEBT BALANCE
+        if (updatedTx.linked_asset_debt_id && updatedTx.type === 'expense') {
+            try {
+                const { data: debtAsset } = await supabase.from('assets').select('credit_paid, has_credit').eq('id', updatedTx.linked_asset_debt_id).single();
+                if (debtAsset && debtAsset.has_credit) {
+                    const currentPaid = Number(debtAsset.credit_paid || 0);
+                    await ApiClient.updateAsset(updatedTx.linked_asset_debt_id, {
+                        credit_paid: currentPaid + updatedTx.amount
+                    });
+                }
+            } catch (err) {
+                console.error("Error applying new linked physical asset debt:", err);
+            }
+        }
+
+        return updatedTx;
+    }
+
+    static async deleteTransaction(id: string): Promise<void> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        // 1. Fetch the OLD transaction to revert any asset balances
+        const oldTx = await this.getTransactionById(id);
+        if (!oldTx) throw new Error("Transaction not found");
+
+        // 2. REVERT OLD ASSET BALANCE
+        if (oldTx.asset_id && oldTx.payment_type === 'debit') {
+            try {
+                const { data: assetData } = await supabase.from('assets').select('current_value').eq('id', oldTx.asset_id).single();
+                if (assetData) {
+                    const newCurrentValue = oldTx.type === 'expense'
+                        ? Number(assetData.current_value) + oldTx.amount
+                        : Number(assetData.current_value) - oldTx.amount;
+
+                    await ApiClient.updateAsset(oldTx.asset_id, { current_value: newCurrentValue });
+                    await ApiClient.createAssetMovement(
+                        oldTx.asset_id,
+                        'adjustment',
+                        oldTx.amount,
+                        new Date().toISOString().split('T')[0],
+                        `Reversión por eliminación de transacción`
+                    );
+                }
+            } catch (err) {
+                console.error("Error reverting old asset balance:", err);
+            }
+        }
+
+        // REVERT OLD PHYSICAL DEBT BALANCE
+        if (oldTx.linked_asset_debt_id && oldTx.type === 'expense') {
+            try {
+                const { data: debtAsset } = await supabase.from('assets').select('credit_paid, has_credit').eq('id', oldTx.linked_asset_debt_id).single();
+                if (debtAsset && debtAsset.has_credit) {
+                    const currentPaid = Number(debtAsset.credit_paid || 0);
+                    await ApiClient.updateAsset(oldTx.linked_asset_debt_id, {
+                        credit_paid: Math.max(0, currentPaid - oldTx.amount)
+                    });
+                }
+            } catch (err) {
+                console.error("Error reverting old linked physical asset debt:", err);
+            }
+        }
+
+        // 3. DELETE FROM DB
+        const { error } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+        if (error) {
+            console.error('Error deleting transaction:', error);
+            throw error;
+        }
+    }
+
     // --- Receipt Upload (AI Ready) ---
     static async uploadReceipt(file: File): Promise<string> {
         const { data: { user } } = await supabase.auth.getUser();
