@@ -7,10 +7,11 @@ import { useAssets, useInstitutions, PORTFOLIO_KEYS } from "@/core/hooks/useQuer
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserOptions } from "@/core/context/UserContext";
 import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
-import { Plus, Briefcase, Activity, Flame, ShieldAlert, PlusCircle, Building, Wallet, LayoutGrid, Pencil, Trash2, List, AlignJustify } from "lucide-react";
+import { Plus, Briefcase, Activity, Flame, ShieldAlert, PlusCircle, Building, Wallet, LayoutGrid, Pencil, Trash2, List, AlignJustify, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FinancialAssetDashboard } from "./FinancialAssetDashboard";
 import { PhysicalAssetCard } from "./PhysicalAssetCard";
+import { TransferModal } from "@/components/ui/TransferModal";
 import dynamic from 'next/dynamic';
 import { Suspense } from "react";
 
@@ -42,6 +43,10 @@ export default function PortfolioPage() {
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [dashboardAsset, setDashboardAsset] = useState<Asset | null>(null);
 
+    // Transfer Modal
+    const [showTransferModal, setShowTransferModal] = useState(false);
+    const [transferSourceId, setTransferSourceId] = useState<string>("");
+
     // Edit Institution State
     const [showEditInstModal, setShowEditInstModal] = useState(false);
     const [editingInst, setEditingInst] = useState<Institution | null>(null);
@@ -60,6 +65,11 @@ export default function PortfolioPage() {
     const openAddModal = () => {
         setEditingAsset(null);
         setShowAddModal(true);
+    };
+
+    const openTransferModal = (sourceId: string = "") => {
+        setTransferSourceId(sourceId);
+        setShowTransferModal(true);
     };
 
     const openEditModal = (asset: Asset) => {
@@ -243,9 +253,19 @@ export default function PortfolioPage() {
                         <h1 className="text-3xl font-bold tracking-tight text-foreground">Centro de Mando</h1>
                         <p className="text-sm font-medium text-muted-foreground mt-1 tracking-wide">Patrimonio Global & Liquidez</p>
                     </div>
-                    <Button onClick={openAddModal} className="w-12 h-12 rounded-full p-0 flex items-center justify-center bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-1">
-                        <Plus size={24} />
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={() => openTransferModal()}
+                            className="h-12 px-4 rounded-[16px] flex items-center justify-center bg-card border border-border/50 hover:bg-muted text-foreground transition-all hover:-translate-y-1 font-bold"
+                            title="Transferencia Interna"
+                        >
+                            <ArrowRightLeft size={20} className="sm:mr-2" />
+                            <span className="hidden sm:inline">Transferir</span>
+                        </Button>
+                        <Button onClick={openAddModal} className="w-12 h-12 rounded-[16px] p-0 flex items-center justify-center bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-1">
+                            <Plus size={24} />
+                        </Button>
+                    </div>
                 </header>
 
                 {loading ? (
@@ -588,9 +608,23 @@ export default function PortfolioPage() {
                         currency={currency}
                         onClose={() => setDashboardAsset(null)}
                         onUpdate={invalidateData}
-                        onEdit={() => openEditModal(dashboardAsset)}
+                        onEdit={() => {
+                            setDashboardAsset(null);
+                            openEditModal(dashboardAsset);
+                        }}
+                        onTransfer={() => openTransferModal(dashboardAsset.id)}
                     />
                 )}
+
+                <TransferModal
+                    isOpen={showTransferModal}
+                    onClose={(updated) => {
+                        setShowTransferModal(false);
+                        if (updated) invalidateData();
+                    }}
+                    assets={assets}
+                    defaultSourceId={transferSourceId}
+                />
             </div>
         </AppLayout >
     );

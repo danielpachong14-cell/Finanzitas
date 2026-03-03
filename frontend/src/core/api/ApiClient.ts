@@ -248,6 +248,38 @@ export class ApiClient {
         };
     }
 
+    static async createInternalTransfer(sourceAssetId: string, destinationAssetId: string, amount: number, date: string, note?: string): Promise<void> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const descriptionPrefix = "Transferencia Interna";
+        const finalNote = note ? `${descriptionPrefix}: ${note}` : descriptionPrefix;
+
+        // 1. Create the Expense on the Source Asset
+        await this.createTransaction({
+            amount: amount,
+            date: date,
+            type: 'expense',
+            category: 'Otros',
+            merchant: 'Transferencia Saliente',
+            asset_id: sourceAssetId,
+            payment_type: 'debit',
+            description: finalNote
+        });
+
+        // 2. Create the Income on the Destination Asset
+        await this.createTransaction({
+            amount: amount,
+            date: date,
+            type: 'income',
+            category: 'Otros',
+            merchant: 'Transferencia Entrante',
+            asset_id: destinationAssetId,
+            payment_type: 'debit',
+            description: finalNote
+        });
+    }
+
     static async getTransactionById(id: string): Promise<Transaction | null> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return null;

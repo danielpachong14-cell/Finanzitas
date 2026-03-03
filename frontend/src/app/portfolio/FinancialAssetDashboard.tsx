@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { ApiClient, Asset, AssetMovement } from "@/core/api/ApiClient";
 import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
-import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, RefreshCcw, Landmark, Activity, Plus, Trash2, Pencil } from "lucide-react";
+import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, RefreshCcw, Landmark, Activity, Plus, Trash2, Pencil, ArrowRightLeft } from "lucide-react";
 import { useUserOptions } from "@/core/context/UserContext";
 import { Button } from "@/components/ui/button";
 
@@ -13,9 +13,10 @@ interface Props {
     onClose: () => void;
     onUpdate: () => void;
     onEdit: () => void;
+    onTransfer: () => void;
 }
 
-export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, onEdit }: Props) {
+export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, onEdit, onTransfer }: Props) {
     const { hideBalances } = useUserOptions();
     const [movements, setMovements] = useState<AssetMovement[]>([]);
     const [loading, setLoading] = useState(true);
@@ -250,15 +251,24 @@ export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, on
                 <div className="flex gap-4 mb-8">
                     <Button
                         onClick={() => { setMovementType('deposit'); setShowMovementModal(true); }}
-                        className="flex-1 h-14 rounded-2xl bg-card border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 font-bold justify-start px-5"
+                        className="flex-1 h-14 rounded-2xl bg-card border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 font-bold justify-start px-3 sm:px-5"
                     >
-                        <ArrowDownCircle size={20} className="mr-3" /> + Aporte
+                        <ArrowDownCircle size={20} className="mr-2 sm:mr-3 shrink-0" />
+                        <span className="truncate">Ingreso</span>
                     </Button>
                     <Button
                         onClick={() => { setMovementType('withdrawal'); setShowMovementModal(true); }}
-                        className="flex-1 h-14 rounded-2xl bg-card border border-destructive/30 text-destructive hover:bg-destructive/10 font-bold justify-start px-5"
+                        className="flex-1 h-14 rounded-2xl bg-card border border-destructive/30 text-destructive hover:bg-destructive/10 font-bold justify-start px-3 sm:px-5"
                     >
-                        <ArrowUpCircle size={20} className="mr-3" /> - Retiro
+                        <ArrowUpCircle size={20} className="mr-2 sm:mr-3 shrink-0" />
+                        <span className="truncate">Retiro</span>
+                    </Button>
+                    <Button
+                        onClick={onTransfer}
+                        className="flex-1 h-14 rounded-2xl bg-card border border-brand-blue/30 text-brand-blue hover:bg-brand-blue/10 font-bold justify-start px-3 sm:px-5"
+                    >
+                        <ArrowRightLeft size={20} className="mr-2 sm:mr-3 shrink-0" />
+                        <span className="truncate">Transferir</span>
                     </Button>
                 </div>
 
