@@ -256,7 +256,8 @@ export class ApiClient {
         // We assume the user creates a public bucket called 'receipts'
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`;
+        // MATCH POLICY: Save inside the "private/" folder 
+        const filePath = `private/${fileName}`;
 
         const { error } = await supabase.storage
             .from('receipts')
