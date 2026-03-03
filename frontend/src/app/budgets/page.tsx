@@ -29,6 +29,7 @@ export default function BudgetsPage() {
 
   // Modal State
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [selectedBudgetForDetails, setSelectedBudgetForDetails] = useState<Category | null>(null);
 
   // Form State (for Budget Create/Edit)
   const [editingCategoryId, setEditingCategoryId] = useState<string>("");
@@ -119,6 +120,22 @@ export default function BudgetsPage() {
         return matchesDate && t.type === type && (txCat === targetCat || txSub === targetCat);
       })
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  };
+
+  const getTransactionsForCategory = (categoryName: string, type: 'expense' | 'income') => {
+    const targetCat = categoryName.trim().toLowerCase();
+
+    return transactions
+      .filter(t => {
+        const d = new Date(t.date);
+        const matchesDate = d.getFullYear() === currentDate.getFullYear() && d.getMonth() === currentDate.getMonth();
+
+        const txCat = (t.category || '').trim().toLowerCase();
+        const txSub = (t.subcategory || '').trim().toLowerCase();
+
+        return matchesDate && t.type === type && (txCat === targetCat || txSub === targetCat);
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
   // Derived Data
@@ -327,12 +344,20 @@ export default function BudgetsPage() {
                           <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mt-1">Límite de {formatPrivacyCurrency(limit, currency, hideBalances)}</p>
                         </div>
 
-                        <div className="h-3 w-full bg-muted rounded-full overflow-hidden">
+                        <div className="h-3 w-full bg-muted rounded-full overflow-hidden mt-1">
                           <div
                             className={`h-full ${isDanger ? 'bg-destructive' : isWarning ? 'bg-orange-400' : 'bg-primary'} transition-all duration-500`}
                             style={{ width: `${pct}%` }}
                           ></div>
                         </div>
+
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-2 text-primary hover:text-primary hover:bg-primary/10 font-bold justify-between"
+                          onClick={() => setSelectedBudgetForDetails(c)}
+                        >
+                          Ver Detalles <ChevronRight size={16} />
+                        </Button>
                       </div>
                     );
                   })}
@@ -392,6 +417,75 @@ export default function BudgetsPage() {
                   {actionLoading ? "Guardando..." : "Guardar Presupuesto"}
                 </Button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {selectedBudgetForDetails && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-md">
+            <div className="bg-card rounded-[32px] p-6 sm:p-8 w-full max-w-2xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200 border border-border/50">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-foreground flex items-center">
+                    {selectedBudgetForDetails.name}
+                  </h3>
+                  <p className="text-muted-foreground text-sm mt-1">Detalle de movimientos</p>
+                </div>
+                <button onClick={() => setSelectedBudgetForDetails(null)} className="p-2 text-muted-foreground bg-muted rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between bg-muted rounded-full px-4 py-2 border border-border/50 mb-6 shrink-0">
+                <button onClick={handlePrevMonth} className="p-2 text-muted-foreground hover:text-foreground transition-colors">
+                  <ChevronLeft size={20} />
+                </button>
+                <span className="font-bold text-foreground capitalize">{monthName}</span>
+                <button onClick={handleNextMonth} className="p-2 text-muted-foreground hover:text-foreground transition-colors">
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-3 mt-2">
+                {(() => {
+                  const catTxs = getTransactionsForCategory(selectedBudgetForDetails.name, 'expense');
+
+                  if (catTxs.length === 0) {
+                    return (
+                      <div className="text-center py-10">
+                        <div className="mx-auto w-16 h-16 bg-muted flex items-center justify-center rounded-full mb-4">
+                          <AlertCircle className="text-muted-foreground/50" size={32} />
+                        </div>
+                        <p className="text-muted-foreground font-medium">No hay movimientos en este mes.</p>
+                      </div>
+                    );
+                  }
+
+                  return catTxs.map(tx => (
+                    <div key={tx.id} className="flex justify-between items-center p-4 bg-background rounded-2xl border border-border/50 hover:bg-muted/50 transition-colors">
+                      <div className="min-w-0 pr-4">
+                        <p className="font-bold text-foreground truncate">{tx.merchant || tx.category}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{new Date(tx.date).toLocaleDateString()}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-bold text-foreground">{formatPrivacyCurrency(Math.abs(tx.amount), currency, hideBalances)}</p>
+                        {tx.subcategory && (
+                          <p className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full inline-block mt-1">
+                            {tx.subcategory}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-border/50 flex justify-between items-center shrink-0">
+                <span className="font-bold text-muted-foreground">Total Gastado</span>
+                <span className="text-2xl font-black text-foreground">
+                  {formatPrivacyCurrency(Math.abs(getSpentForCategory(selectedBudgetForDetails.name, 'expense')), currency, hideBalances)}
+                </span>
+              </div>
             </div>
           </div>
         )}
