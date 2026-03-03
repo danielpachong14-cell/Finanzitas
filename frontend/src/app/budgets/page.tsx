@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useUserOptions } from "@/core/context/UserContext";
+import { TransactionEditModal } from "@/components/ui/TransactionEditModal";
 
 export default function BudgetsPage() {
   const { currency, hideBalances } = useUserOptions();
@@ -30,6 +31,7 @@ export default function BudgetsPage() {
   // Modal State
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [selectedBudgetForDetails, setSelectedBudgetForDetails] = useState<Category | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   // Form State (for Budget Create/Edit)
   const [editingCategoryId, setEditingCategoryId] = useState<string>("");
@@ -462,7 +464,11 @@ export default function BudgetsPage() {
                   }
 
                   return catTxs.map(tx => (
-                    <div key={tx.id} className="flex justify-between items-center p-4 bg-background rounded-2xl border border-border/50 hover:bg-muted/50 transition-colors">
+                    <div
+                      key={tx.id}
+                      onClick={() => setEditingTransaction(tx)}
+                      className="flex justify-between items-center p-4 bg-background rounded-2xl border border-border/50 hover:bg-muted/50 transition-colors cursor-pointer active:scale-[0.98]"
+                    >
                       <div className="min-w-0 pr-4">
                         <p className="font-bold text-foreground truncate">{tx.merchant || tx.category}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{new Date(tx.date).toLocaleDateString()}</p>
@@ -488,6 +494,17 @@ export default function BudgetsPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {editingTransaction && (
+          <TransactionEditModal
+            transaction={editingTransaction}
+            isOpen={!!editingTransaction}
+            onClose={() => {
+              setEditingTransaction(null);
+              fetchAllData();
+            }}
+          />
         )}
       </div>
     </AppLayout>
