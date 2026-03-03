@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { ApiClient, Asset, AssetMovement } from "@/core/api/ApiClient";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, RefreshCcw, Landmark, Activity, Plus, Trash2, Pencil } from "lucide-react";
+import { useUserOptions } from "@/core/context/UserContext";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, onEdit }: Props) {
+    const { hideBalances } = useUserOptions();
     const [movements, setMovements] = useState<AssetMovement[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -198,7 +200,7 @@ export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, on
                     <div className="bg-gradient-to-br from-primary to-primary/80 rounded-[32px] p-6 text-primary-foreground shadow-lg shadow-primary/20 relative overflow-hidden">
                         <Landmark size={120} className="absolute -right-4 -bottom-4 opacity-10" />
                         <p className="font-bold text-primary-foreground/80 mb-1 tracking-wide uppercase text-sm">Saldo Real</p>
-                        <h3 className="text-4xl font-black tracking-tighter mb-4">{formatCurrency(asset.current_value, currency)}</h3>
+                        <h3 className="text-4xl font-black tracking-tighter mb-4">{formatPrivacyCurrency(asset.current_value, currency, hideBalances)}</h3>
 
                         {!realBalanceForm ? (
                             <Button
@@ -234,7 +236,7 @@ export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, on
                             <div className="h-10 w-48 bg-muted animate-pulse rounded-lg mt-2"></div>
                         ) : (
                             <h3 className="text-4xl font-black text-foreground tracking-tighter mb-2">
-                                {formatCurrency(theoreticalBalance, currency)}
+                                {formatPrivacyCurrency(theoreticalBalance, currency, hideBalances)}
                             </h3>
                         )}
                         <p className="text-xs font-bold text-emerald-500 bg-emerald-500/10 inline-block px-2 py-1 rounded-md mt-2">
@@ -290,7 +292,7 @@ export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, on
                                             mov.amount > 0 ? 'text-emerald-500' : 'text-destructive'
                                         }`}>
                                         {mov.type === 'withdrawal' ? '-' : mov.amount > 0 ? '+' : ''}
-                                        {formatCurrency(Math.abs(mov.amount), currency)}
+                                        {formatPrivacyCurrency(Math.abs(mov.amount), currency, hideBalances)}
                                     </div>
                                 </div>
                             ))}

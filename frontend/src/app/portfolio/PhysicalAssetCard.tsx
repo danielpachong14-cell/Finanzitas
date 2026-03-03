@@ -1,6 +1,6 @@
 import React from 'react';
 import { Asset } from '@/core/api/ApiClient';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatPrivacyCurrency } from '@/lib/utils';
 import { useUserOptions } from '@/core/context/UserContext';
 
 export function PhysicalAssetCard({
@@ -12,7 +12,7 @@ export function PhysicalAssetCard({
     viewMode: 'list' | 'gallery';
     onClick: () => void;
 }) {
-    const { currency } = useUserOptions();
+    const { currency, hideBalances } = useUserOptions();
 
     // Calculate values
     const isFinanced = asset.has_credit && asset.credit_amount;
@@ -68,14 +68,14 @@ export function PhysicalAssetCard({
                     {isFinanced ? (
                         <>
                             <p className={`font-black tracking-tight ${progressPercent === 100 ? 'text-emerald-500' : 'text-foreground'} ${viewMode === 'gallery' ? 'text-2xl' : 'text-lg'}`}>
-                                {formatCurrency(equityReal, currency)}
+                                {formatPrivacyCurrency(equityReal, currency, hideBalances)}
                             </p>
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Equity Real</p>
                         </>
                     ) : (
                         <>
                             <p className={`font-black text-foreground tracking-tight ${viewMode === 'gallery' ? 'text-2xl' : 'text-lg'}`}>
-                                {formatCurrency(asset.current_value, currency)}
+                                {formatPrivacyCurrency(asset.current_value, currency, hideBalances)}
                             </p>
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Valor Estimado</p>
                         </>

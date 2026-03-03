@@ -3,11 +3,11 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { CreditCard, Plus } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { useUserOptions } from "@/core/context/UserContext";
 
 export default function CardsPage() {
-  const { currency } = useUserOptions();
+  const { currency, hideBalances } = useUserOptions();
   return (
     <AppLayout>
       <div className="p-6">
@@ -31,7 +31,7 @@ export default function CardsPage() {
               </div>
               <div>
                 <p className="text-sm text-white/70 mb-1">Saldo Disponible</p>
-                <p className="text-3xl font-bold tracking-tight">{formatCurrency(3330, currency)}</p>
+                <p className="text-3xl font-bold tracking-tight">{formatPrivacyCurrency(3330, currency, hideBalances)}</p>
               </div>
             </CardContent>
           </Card>

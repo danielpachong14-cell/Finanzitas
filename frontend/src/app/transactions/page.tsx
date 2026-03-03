@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { ApiClient, Transaction } from "@/core/api/ApiClient";
 import { useTransactions } from "@/core/hooks/useQueries";
 import { ArrowLeft, Download, Search, Filter, SlidersHorizontal, ArrowDownLeft, ArrowUpRight } from "lucide-react";
@@ -13,7 +13,7 @@ import { TransactionEditModal } from "@/components/ui/TransactionEditModal";
 
 export default function TransactionsHistoryPage() {
   const router = useRouter();
-  const { currency } = useUserOptions();
+  const { currency, hideBalances } = useUserOptions();
   const { data: transactionsData, isLoading: loading } = useTransactions();
   const transactions = transactionsData || [];
 
@@ -197,7 +197,7 @@ export default function TransactionsHistoryPage() {
                     </div>
                   </div>
                   <p className={`font-bold text-xl self-end md:self-center shrink-0 ${tx.type === 'income' ? 'text-emerald-500' : 'text-foreground'}`}>
-                    {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount, currency).replace('$', ' $').replace('€', ' €')}
+                    {tx.type === 'income' ? '+' : '-'}{formatPrivacyCurrency(tx.amount, currency, hideBalances).replace('$', ' $').replace('€', ' €')}
                   </p>
                 </div>
               ))}

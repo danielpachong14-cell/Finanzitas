@@ -10,6 +10,8 @@ interface UserContextProps {
     setCurrency: (newCurrency: string) => Promise<void>;
     theme: string;
     setTheme: (newTheme: string) => Promise<void>;
+    hideBalances: boolean;
+    toggleHideBalances: () => void;
     loading: boolean;
 }
 
@@ -18,15 +20,23 @@ const UserContext = createContext<UserContextProps>({
     setCurrency: async () => { },
     theme: 'system',
     setTheme: async () => { },
+    hideBalances: false,
+    toggleHideBalances: () => { },
     loading: true,
 });
 
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     const [currency, setCurrencyState] = useState('USD');
     const [loading, setLoading] = useState(true);
+    const [hideBalances, setHideBalances] = useState(false);
     const { theme: nextTheme, setTheme: setNextTheme } = useTheme();
 
     useEffect(() => {
+        // Load privacy mode from local storage
+        try {
+            const savedPrivacy = localStorage.getItem("finanzitas-privacy-mode");
+            if (savedPrivacy === "true") setHideBalances(true);
+        } catch (e) { }
         // 1. Initial Load
         const loadSettings = async () => {
             try {
@@ -83,8 +93,18 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const toggleHideBalances = () => {
+        setHideBalances(prev => {
+            const newVal = !prev;
+            try {
+                localStorage.setItem("finanzitas-privacy-mode", newVal.toString());
+            } catch (e) { }
+            return newVal;
+        });
+    };
+
     return (
-        <UserContext.Provider value={{ currency, setCurrency, theme: nextTheme || 'system', setTheme, loading }}>
+        <UserContext.Provider value={{ currency, setCurrency, theme: nextTheme || 'system', setTheme, hideBalances, toggleHideBalances, loading }}>
             {children}
         </UserContext.Provider>
     );

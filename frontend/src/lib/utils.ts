@@ -13,3 +13,9 @@ export function formatCurrency(amount: number, currency: string = 'USD'): string
     maximumFractionDigits: 2,
   }).format(amount);
 }
+
+export function formatPrivacyCurrency(amount: number, currency: string = 'USD', hide: boolean = false): string {
+  if (hide) return '****';
+  return formatCurrency(amount, currency);
+}
+

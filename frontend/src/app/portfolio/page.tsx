@@ -6,7 +6,7 @@ import { ApiClient, Asset, Institution } from "@/core/api/ApiClient";
 import { useAssets, useInstitutions, PORTFOLIO_KEYS } from "@/core/hooks/useQueries";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserOptions } from "@/core/context/UserContext";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { Plus, Briefcase, Activity, Flame, ShieldAlert, PlusCircle, Building, Wallet, LayoutGrid, Pencil, Trash2, List, AlignJustify } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FinancialAssetDashboard } from "./FinancialAssetDashboard";
@@ -23,7 +23,7 @@ const AssetFormModal = dynamic(() => import('./AssetFormModal').then(mod => mod.
 });
 
 export default function PortfolioPage() {
-    const { currency } = useUserOptions();
+    const { currency, hideBalances } = useUserOptions();
     const queryClient = useQueryClient();
 
     // Data via React Query
@@ -270,7 +270,7 @@ export default function PortfolioPage() {
                                         <p className="font-bold text-muted-foreground uppercase tracking-widest text-xs">Patrimonio Neto Total</p>
                                     </div>
                                     <h2 className="text-5xl md:text-6xl font-black text-foreground tracking-tighter">
-                                        {formatCurrency(totalNetWorth, currency)}
+                                        {formatPrivacyCurrency(totalNetWorth, currency, hideBalances)}
                                     </h2>
                                 </div>
 
@@ -278,15 +278,15 @@ export default function PortfolioPage() {
                                 <div className="flex gap-4 md:flex-col md:gap-2 text-right">
                                     <div className="flex items-center space-x-2 md:justify-end">
                                         <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
-                                        <span className="text-sm font-bold text-muted-foreground">L1: {formatCurrency(l1Total, currency)}</span>
+                                        <span className="text-sm font-bold text-muted-foreground">L1: {formatPrivacyCurrency(l1Total, currency, hideBalances)}</span>
                                     </div>
                                     <div className="flex items-center space-x-2 md:justify-end">
                                         <span className="w-3 h-3 rounded-full bg-brand-orange shadow-[0_0_10px_rgba(249,115,22,0.5)]"></span>
-                                        <span className="text-sm font-bold text-muted-foreground">L2: {formatCurrency(l2Total, currency)}</span>
+                                        <span className="text-sm font-bold text-muted-foreground">L2: {formatPrivacyCurrency(l2Total, currency, hideBalances)}</span>
                                     </div>
                                     <div className="flex items-center space-x-2 md:justify-end">
                                         <span className="w-3 h-3 rounded-full bg-brand-blue shadow-[0_0_10px_rgba(59,130,246,0.5)]"></span>
-                                        <span className="text-sm font-bold text-muted-foreground">L3: {formatCurrency(l3Total, currency)}</span>
+                                        <span className="text-sm font-bold text-muted-foreground">L3: {formatPrivacyCurrency(l3Total, currency, hideBalances)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -307,7 +307,7 @@ export default function PortfolioPage() {
                                 </div>
                                 <div>
                                     <h3 className="text-muted-foreground font-bold text-sm mb-1">Dinero Ocioso (Rendimiento 0%)</h3>
-                                    <p className="text-3xl font-black text-foreground tracking-tight">{formatCurrency(idleMoney, currency)}</p>
+                                    <p className="text-3xl font-black text-foreground tracking-tight">{formatPrivacyCurrency(idleMoney, currency, hideBalances)}</p>
                                     <p className="text-xs text-muted-foreground font-medium mt-2">Este dinero de Liquidez Inmediata está perdiendo valor contra la inflación. Sugerimos moverlo a vehículos L2.</p>
                                 </div>
                             </div>
@@ -365,7 +365,7 @@ export default function PortfolioPage() {
                                                 </div>
                                                 <div className="text-right shrink-0">
                                                     <span className="font-bold text-muted-foreground mr-2">{c.percentage.toFixed(1)}%</span>
-                                                    <span className="font-bold text-foreground">{formatCurrency(c.total, currency)}</span>
+                                                    <span className="font-bold text-foreground">{formatPrivacyCurrency(c.total, currency, hideBalances)}</span>
                                                 </div>
                                             </div>
                                         ))}
@@ -485,7 +485,7 @@ export default function PortfolioPage() {
                                                                     </button>
                                                                 )}
                                                             </h4>
-                                                            <span className="text-sm font-black text-foreground">{formatCurrency(groupTotal, currency)}</span>
+                                                            <span className="text-sm font-black text-foreground">{formatPrivacyCurrency(groupTotal, currency, hideBalances)}</span>
                                                         </div>
                                                         <div className="space-y-3">
                                                             {groupAssets.map(asset => (
@@ -505,7 +505,7 @@ export default function PortfolioPage() {
                                                                         </div>
                                                                     </div>
                                                                     <div className="text-right flex flex-col items-end">
-                                                                        <p className="font-black text-foreground text-lg tracking-tight">{formatCurrency(asset.current_value, asset.currency)}</p>
+                                                                        <p className="font-black text-foreground text-lg tracking-tight">{formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}</p>
                                                                     </div>
                                                                 </div>
                                                             ))}
@@ -532,7 +532,7 @@ export default function PortfolioPage() {
                                                                         {gAssets.length}
                                                                     </span>
                                                                 </h4>
-                                                                <span className="text-sm font-black text-foreground">{formatCurrency(groupTotal, currency)}</span>
+                                                                <span className="text-sm font-black text-foreground">{formatPrivacyCurrency(groupTotal, currency, hideBalances)}</span>
                                                             </div>
                                                             <div className={physicalViewMode === 'gallery' ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-3"}>
                                                                 {gAssets.map(asset => (

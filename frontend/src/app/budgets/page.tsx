@@ -9,12 +9,12 @@ import { ApiClient, Category, Transaction } from "@/core/api/ApiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useUserOptions } from "@/core/context/UserContext";
 
 export default function BudgetsPage() {
-  const { currency } = useUserOptions();
+  const { currency, hideBalances } = useUserOptions();
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -199,7 +199,7 @@ export default function BudgetsPage() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Presupuesto Total</p>
-                    <p className="text-3xl font-bold text-foreground">{formatCurrency(totalBudget, currency)}</p>
+                    <p className="text-3xl font-bold text-foreground">{formatPrivacyCurrency(totalBudget, currency, hideBalances)}</p>
                   </div>
                 </div>
               </div>
@@ -207,11 +207,11 @@ export default function BudgetsPage() {
               <div className="space-y-3">
                 <div className="flex justify-between items-end text-sm font-bold">
                   <div>
-                    <span className="text-foreground text-base">{formatCurrency(totalSpent, currency)} gastados</span>
-                    <p className="text-muted-foreground text-xs mt-0.5">de {formatCurrency(totalBudget, currency)}</p>
+                    <span className="text-foreground text-base">{formatPrivacyCurrency(totalSpent, currency, hideBalances)} gastados</span>
+                    <p className="text-muted-foreground text-xs mt-0.5">de {formatPrivacyCurrency(totalBudget, currency, hideBalances)}</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-primary text-base">{formatCurrency(Math.max(0, totalBudget - totalSpent), currency)}</span>
+                    <span className="text-primary text-base">{formatPrivacyCurrency(Math.max(0, totalBudget - totalSpent), currency, hideBalances)}</span>
                     <p className="text-muted-foreground text-xs mt-0.5">restantes</p>
                   </div>
                 </div>
@@ -322,9 +322,9 @@ export default function BudgetsPage() {
                         </div>
 
                         <div className="text-right">
-                          <p className="font-bold text-foreground text-3xl tracking-tight">{formatCurrency(spent, currency)}</p>
-                          <p className="text-sm text-primary font-bold mt-1">Quedan {formatCurrency(Math.max(0, limit - spent), currency)}</p>
-                          <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mt-1">Límite de {formatCurrency(limit, currency)}</p>
+                          <p className="font-bold text-foreground text-3xl tracking-tight">{formatPrivacyCurrency(spent, currency, hideBalances)}</p>
+                          <p className="text-sm text-primary font-bold mt-1">Quedan {formatPrivacyCurrency(Math.max(0, limit - spent), currency, hideBalances)}</p>
+                          <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mt-1">Límite de {formatPrivacyCurrency(limit, currency, hideBalances)}</p>
                         </div>
 
                         <div className="h-3 w-full bg-muted rounded-full overflow-hidden">

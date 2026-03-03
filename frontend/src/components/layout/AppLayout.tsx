@@ -1,8 +1,9 @@
 "use client";
 
 import { ReactNode, useState } from "react";
-import { Home, PieChart, CreditCard, User, Target, Tags, ChevronLeft, ChevronRight, LogOut, Briefcase } from "lucide-react";
+import { Home, PieChart, CreditCard, User, Target, Tags, ChevronLeft, ChevronRight, LogOut, Briefcase, Eye, EyeOff } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { useUserOptions } from "@/core/context/UserContext";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -13,6 +14,7 @@ export function AppLayout({ children, hideNav = false }: AppLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const { hideBalances, toggleHideBalances } = useUserOptions();
 
   const navItems = [
     { icon: Home, label: "Home", href: "/dashboard" },
@@ -65,6 +67,14 @@ export function AppLayout({ children, hideNav = false }: AppLayoutProps) {
 
           <div className="mt-auto w-full space-y-2">
             <button
+              onClick={toggleHideBalances}
+              className={`w-full flex items-center ${isSidebarCollapsed ? "justify-center px-0" : "space-x-4 px-4"} py-3 text-muted-foreground hover:bg-muted rounded-2xl transition-colors`}
+              title={isSidebarCollapsed ? "Privacidad" : undefined}
+            >
+              {hideBalances ? <EyeOff size={22} className="shrink-0" /> : <Eye size={22} className="shrink-0" />}
+              {!isSidebarCollapsed && <span className="font-bold">{hideBalances ? "Mostrar Saldos" : "Ocultar Saldos"}</span>}
+            </button>
+            <button
               onClick={() => router.push("/login")}
               className={`w-full flex items-center ${isSidebarCollapsed ? "justify-center px-0" : "space-x-4 px-4"} py-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-2xl transition-colors`}
               title={isSidebarCollapsed ? "Cerrar Sesión" : undefined}
@@ -107,6 +117,12 @@ export function AppLayout({ children, hideNav = false }: AppLayoutProps) {
                 </button>
               );
             })}
+            <button
+              onClick={toggleHideBalances}
+              className={`flex flex-col items-center justify-center transition-all text-muted-foreground hover:text-foreground`}
+            >
+              {hideBalances ? <EyeOff size={24} strokeWidth={2} /> : <Eye size={24} strokeWidth={2} />}
+            </button>
           </div>
         </nav>
       )}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { ApiClient, Balance, Transaction } from "@/core/api/ApiClient";
 import { useTransactions, useBalance } from "@/core/hooks/useQueries";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { ArrowDownLeft, ArrowUpRight, Bell, Wallet } from "lucide-react";
 import { useUserOptions } from "@/core/context/UserContext";
 
 export default function DashboardPage() {
-  const { currency } = useUserOptions();
+  const { currency, hideBalances } = useUserOptions();
   const [balance, setBalance] = useState<Balance | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -89,7 +89,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-primary-foreground/80 text-sm font-medium mb-1">Flujo Neto del Período</p>
               <h2 className="text-4xl font-bold tracking-tight">
-                {loading ? "..." : formatCurrency(balance?.total || 0, currency)}
+                {loading ? "..." : formatPrivacyCurrency(balance?.total || 0, currency, hideBalances)}
               </h2>
             </div>
             <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
@@ -107,7 +107,7 @@ export default function DashboardPage() {
               </div>
               <p className="text-xs text-muted-foreground font-bold mb-1 uppercase tracking-wider">Ingresos</p>
               <p className="text-lg font-bold text-foreground tracking-tight">
-                {loading ? "..." : formatCurrency(balance?.income || 0, currency)}
+                {loading ? "..." : formatPrivacyCurrency(balance?.income || 0, currency, hideBalances)}
               </p>
             </CardContent>
           </Card>
@@ -119,7 +119,7 @@ export default function DashboardPage() {
               </div>
               <p className="text-xs text-muted-foreground font-bold mb-1 uppercase tracking-wider">Egresos</p>
               <p className="text-lg font-bold text-foreground tracking-tight">
-                {loading ? "..." : formatCurrency(balance?.expense || 0, currency)}
+                {loading ? "..." : formatPrivacyCurrency(balance?.expense || 0, currency, hideBalances)}
               </p>
             </CardContent>
           </Card>
@@ -159,7 +159,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="font-bold tracking-tight">
                     <span className={tx.type === 'income' ? 'text-emerald-500' : 'text-foreground'}>
-                      {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount, currency).replace('$', ' $').replace('€', ' €')}
+                      {tx.type === 'income' ? '+' : '-'}{formatPrivacyCurrency(tx.amount, currency, hideBalances).replace('$', ' $').replace('€', ' €')}
                     </span>
                   </div>
                 </div>
