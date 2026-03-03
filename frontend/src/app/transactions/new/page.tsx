@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ApiClient, Category, Asset } from "@/core/api/ApiClient";
 import { useUserOptions } from "@/core/context/UserContext";
+import { ReceiptUploader, ParsedReceiptData } from "@/components/ui/ReceiptUploader";
 
 export default function NewTransactionPage() {
   const router = useRouter();
@@ -43,6 +44,7 @@ export default function NewTransactionPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [merchant, setMerchant] = useState("");
   const [notes, setNotes] = useState("");
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
   const [financedPhysicalAssets, setFinancedPhysicalAssets] = useState<Asset[]>([]);
   const [isPayingPhysicalDebt, setIsPayingPhysicalDebt] = useState(false);
@@ -112,6 +114,23 @@ export default function NewTransactionPage() {
     setSubcategory("");
   }, [categoryName]);
 
+  const handleReceiptUploadSuccess = (url: string, parsedData?: ParsedReceiptData) => {
+    setReceiptUrl(url);
+    if (!parsedData) return;
+
+    // "Magic" auto-fill based on AI response mock
+    if (parsedData.amount) {
+      setAmount(parsedData.amount.toString());
+    }
+    if (parsedData.merchant) {
+      setMerchant(parsedData.merchant);
+      setDescription(`Compra en ${parsedData.merchant}`);
+    }
+    if (parsedData.date) {
+      setDate(parsedData.date);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
@@ -124,13 +143,19 @@ export default function NewTransactionPage() {
         dateString = new Date(`${date}T${time}:00`).toISOString();
       }
 
-      // Concatenate Notes and Currency into description/notes if needed
+      // Concatenate Notes, Currency, and Receipt into description/notes
       let finalDescription = description.trim();
       if (txCurrency !== defaultCurrency) {
         finalDescription = `[${txCurrency}] ${finalDescription}`;
       }
-      if (notes.trim()) {
-        finalDescription += `\n\nNotas: ${notes.trim()}`;
+
+      let finalNotes = notes.trim();
+      if (receiptUrl) {
+        finalNotes += finalNotes ? `\n\nArchivo Adjunto: ${receiptUrl}` : `Archivo Adjunto: ${receiptUrl}`;
+      }
+
+      if (finalNotes) {
+        finalDescription += `\n\nNotas: ${finalNotes}`;
       }
 
       await ApiClient.createTransaction({
@@ -192,6 +217,8 @@ export default function NewTransactionPage() {
         {/* Form Container */}
         <div className="flex-1 overflow-y-auto px-4 pb-8 custom-scrollbar">
           <form onSubmit={handleSubmit} className="flex flex-col h-full space-y-4 max-w-2xl mx-auto">
+
+            <ReceiptUploader onUploadSuccess={handleReceiptUploadSuccess} />
 
             {/* AMOUNT AND TITLE GRID */}
             <div className="bg-card rounded-[32px] p-6 border border-border/50 shadow-sm space-y-5">

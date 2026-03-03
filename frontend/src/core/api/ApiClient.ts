@@ -248,6 +248,32 @@ export class ApiClient {
         };
     }
 
+    // --- Receipt Upload (AI Ready) ---
+    static async uploadReceipt(file: File): Promise<string> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        // We assume the user creates a public bucket called 'receipts'
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error } = await supabase.storage
+            .from('receipts')
+            .upload(filePath, file);
+
+        if (error) {
+            console.error('Error uploading receipt:', error);
+            throw error;
+        }
+
+        const { data } = supabase.storage
+            .from('receipts')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
+    }
+
     // --- Categories ---
 
     static async getCategories(): Promise<Category[]> {
