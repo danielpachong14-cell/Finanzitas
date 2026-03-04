@@ -248,7 +248,7 @@ export class ApiClient {
         };
     }
 
-    static async createInternalTransfer(sourceAssetId: string, destinationAssetId: string, amount: number, date: string, note?: string): Promise<void> {
+    static async createInternalTransfer(sourceAssetId: string, destinationAssetId: string, amount: number, date: string, note?: string, expenseCategory?: string, expenseSubcategory?: string): Promise<void> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("User not authenticated");
 
@@ -260,7 +260,8 @@ export class ApiClient {
             amount: amount,
             date: date,
             type: 'expense',
-            category: 'Otros',
+            category: expenseCategory || 'Otros',
+            subcategory: expenseSubcategory || undefined,
             merchant: 'Transferencia Saliente',
             asset_id: sourceAssetId,
             payment_type: 'debit',

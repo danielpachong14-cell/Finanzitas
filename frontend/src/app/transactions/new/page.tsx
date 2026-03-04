@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronUp, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ export default function NewTransactionPage() {
 
   const [loading, setLoading] = useState(false);
   const [fetchingCats, setFetchingCats] = useState(true);
-  const [type, setType] = useState<'expense' | 'income'>('expense');
+  const [type, setType] = useState<'expense' | 'income' | 'transfer'>('expense');
 
   // Basic Info State
   const [amount, setAmount] = useState("");
@@ -38,6 +38,7 @@ export default function NewTransactionPage() {
   const [fetchingAssets, setFetchingAssets] = useState(true);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetId, setAssetId] = useState("");
+  const [destinationAssetId, setDestinationAssetId] = useState("");
   const [paymentType, setPaymentType] = useState<'debit' | 'credit'>('debit');
 
   // Advanced Mode State
@@ -87,7 +88,9 @@ export default function NewTransactionPage() {
   }, []);
 
   // Filter main categories by the currently selected Type
-  const mainCategories = allCategories.filter(c => c.type === type && !c.parent_id);
+  // For 'transfer', we allow the user to select an 'expense' category (e.g. Ahorros) so it counts in their budget
+  const effectiveType = type === 'transfer' ? 'expense' : type;
+  const mainCategories = allCategories.filter(c => c.type === effectiveType && !c.parent_id);
 
   // Find the currently selected Main Category object
   const selectedMainCategory = mainCategories.find(c => c.name === categoryName);
@@ -158,18 +161,41 @@ export default function NewTransactionPage() {
         finalDescription += `\n\nNotas: ${finalNotes}`;
       }
 
-      await ApiClient.createTransaction({
-        type,
-        amount: parseFloat(amount),
-        category: categoryName || "Otros", // Fallback if none selected
-        subcategory: subcategory || undefined,
-        merchant: merchant || undefined,
-        asset_id: assetId || undefined,
-        payment_type: assetId ? paymentType : undefined,
-        linked_asset_debt_id: type === 'expense' && isPayingPhysicalDebt && linkedAssetDebtId ? linkedAssetDebtId : undefined,
-        date: dateString,
-        description: finalDescription || undefined,
-      });
+      if (type === 'transfer') {
+        if (!assetId || !destinationAssetId) {
+          alert("Debe seleccionar una cuenta de origen y una de destino.");
+          setLoading(false);
+          return;
+        }
+        if (assetId === destinationAssetId) {
+          alert("La cuenta de origen y destino no pueden ser la misma.");
+          setLoading(false);
+          return;
+        }
+        await ApiClient.createInternalTransfer(
+          assetId,
+          destinationAssetId,
+          parseFloat(amount),
+          dateString,
+          finalDescription,
+          categoryName || undefined,
+          subcategory || undefined
+        );
+      } else {
+        await ApiClient.createTransaction({
+          type,
+          amount: parseFloat(amount),
+          category: categoryName || "Otros", // Fallback if none selected
+          subcategory: subcategory || undefined,
+          merchant: merchant || undefined,
+          asset_id: assetId || undefined,
+          payment_type: assetId ? paymentType : undefined,
+          linked_asset_debt_id: type === 'expense' && isPayingPhysicalDebt && linkedAssetDebtId ? linkedAssetDebtId : undefined,
+          date: dateString,
+          description: finalDescription || undefined,
+        });
+      }
+
       router.push("/dashboard");
     } catch (error) {
       console.error(error);
@@ -195,20 +221,29 @@ export default function NewTransactionPage() {
             <button
               type="button"
               onClick={() => setType('expense')}
-              className={`flex items-center px-4 py-2 rounded-full transition-all text-sm ${type === 'expense' ? 'bg-destructive text-destructive-foreground font-bold shadow-sm scale-105' : 'text-muted-foreground font-semibold hover:bg-muted'}`}
+              className={`flex items-center px-3 sm:px-4 py-2 rounded-full transition-all text-sm ${type === 'expense' ? 'bg-destructive text-destructive-foreground font-bold shadow-sm scale-105' : 'text-muted-foreground font-semibold hover:bg-muted'}`}
               disabled={loading}
             >
-              <ArrowUpRight size={16} strokeWidth={2.5} className="mr-1.5" />
+              <ArrowUpRight size={16} strokeWidth={2.5} className="mr-1.5 hidden sm:block" />
               Egreso
             </button>
             <button
               type="button"
               onClick={() => setType('income')}
-              className={`flex items-center px-4 py-2 rounded-full transition-all text-sm ${type === 'income' ? 'bg-emerald-500 text-white font-bold shadow-sm scale-105' : 'text-muted-foreground font-semibold hover:bg-muted'}`}
+              className={`flex items-center px-3 sm:px-4 py-2 rounded-full transition-all text-sm ${type === 'income' ? 'bg-emerald-500 text-white font-bold shadow-sm scale-105' : 'text-muted-foreground font-semibold hover:bg-muted'}`}
               disabled={loading}
             >
-              <ArrowDownLeft size={16} strokeWidth={2.5} className="mr-1.5" />
+              <ArrowDownLeft size={16} strokeWidth={2.5} className="mr-1.5 hidden sm:block" />
               Ingreso
+            </button>
+            <button
+              type="button"
+              onClick={() => setType('transfer')}
+              className={`flex items-center px-3 sm:px-4 py-2 rounded-full transition-all text-sm ${type === 'transfer' ? 'bg-brand-blue text-white font-bold shadow-sm scale-105' : 'text-muted-foreground font-semibold hover:bg-muted'}`}
+              disabled={loading}
+            >
+              <ArrowRightLeft size={16} strokeWidth={2.5} className="mr-1.5 hidden sm:block" />
+              Transferencia
             </button>
           </div>
           <div className="w-10"></div>
@@ -348,7 +383,7 @@ export default function NewTransactionPage() {
             <div className="bg-card rounded-[32px] p-6 border border-border/50 shadow-sm space-y-5">
               <div className="space-y-2">
                 <Label className="text-muted-foreground font-bold ml-2 text-xs uppercase tracking-wider">
-                  {type === 'expense' ? 'Cuenta de Origen' : 'Cuenta de Destino'}
+                  {type === 'expense' || type === 'transfer' ? 'Cuenta de Origen' : 'Cuenta de Destino'}
                 </Label>
                 {fetchingAssets ? (
                   <div className="h-14 rounded-2xl bg-muted animate-pulse w-full"></div>
@@ -366,6 +401,29 @@ export default function NewTransactionPage() {
                   </select>
                 )}
               </div>
+
+              {type === 'transfer' && (
+                <div className="space-y-2 pt-2">
+                  <Label className="text-muted-foreground font-bold ml-2 text-xs uppercase tracking-wider">
+                    Cuenta de Destino
+                  </Label>
+                  {fetchingAssets ? (
+                    <div className="h-14 rounded-2xl bg-muted animate-pulse w-full"></div>
+                  ) : (
+                    <select
+                      value={destinationAssetId}
+                      onChange={(e) => setDestinationAssetId(e.target.value)}
+                      className="w-full h-14 rounded-2xl px-4 font-bold text-foreground text-base bg-muted/50 border-transparent focus-visible:bg-card focus-visible:border-border/50 focus-visible:outline-none focus-visible:ring-2 appearance-none"
+                      disabled={loading || assets.length === 0}
+                    >
+                      <option value="">Seleccionar cuenta destino...</option>
+                      {assets.filter(a => a.id !== assetId).map(a => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
 
               {assetId && type === 'expense' && (
                 <div className="pt-2">
@@ -472,9 +530,9 @@ export default function NewTransactionPage() {
               <Button
                 type="submit"
                 disabled={loading || !amount || !description}
-                className={`w-full rounded-full text-white py-8 h-16 font-bold text-lg hover:-translate-y-1 transition-all shadow-lg ${type === 'expense' ? 'bg-destructive hover:bg-destructive/90 shadow-destructive/20' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'}`}
+                className={`w-full rounded-full text-white py-8 h-16 font-bold text-lg hover:-translate-y-1 transition-all shadow-lg ${type === 'expense' ? 'bg-destructive hover:bg-destructive/90 shadow-destructive/20' : type === 'transfer' ? 'bg-brand-blue hover:bg-brand-blue/90 shadow-brand-blue/20' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'}`}
               >
-                {loading ? 'Guardando...' : `Registrar ${type === 'expense' ? 'Egreso' : 'Ingreso'}`}
+                {loading ? 'Guardando...' : `Registrar ${type === 'expense' ? 'Egreso' : type === 'transfer' ? 'Transferencia' : 'Ingreso'}`}
               </Button>
             </div>
           </form>
