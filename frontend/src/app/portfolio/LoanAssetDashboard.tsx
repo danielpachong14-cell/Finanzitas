@@ -54,15 +54,27 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
     const handleRegisterPayment = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
+        const pTotal = Number(payTotal);
+        const pPrin = Number(payPrincipal);
+        const pInt = Number(payInterest);
+        const pExtra = Number(payExtra) || 0;
+
+        // Safety check
+        if (Math.abs(pTotal - (pPrin + pInt + pExtra)) > 0.05) {
+            alert("Los valores de Principal, Interés y Extra no suman el Total Pagado. Por favor revisa los montos.");
+            setSaving(false);
+            return;
+        }
+
         try {
             await ApiClient.registerLoanPayment({
                 asset_id: asset.id,
                 date: payDate,
-                payment_amount: Number(payTotal),
-                principal_amount: Number(payPrincipal),
-                interest_amount: Number(payInterest),
-                extra_principal_amount: Number(payExtra) || 0,
-                extra_action: Number(payExtra) > 0 ? extraAction : undefined
+                payment_amount: pTotal,
+                principal_amount: pPrin,
+                interest_amount: pInt,
+                extra_principal_amount: pExtra,
+                extra_action: pExtra > 0 ? extraAction : undefined
             });
 
             setShowPaymentModal(false);
@@ -97,70 +109,127 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
         }
     };
 
+    // Auto-fill logic when user types the total paid amount
+    const handlePayTotalChange = (valStr: string) => {
+        setPayTotal(valStr);
+        const val = Number(valStr);
+        if (schedule && schedule.length > 0) {
+            const next = schedule[0];
+            const expInt = next.interest;
+            const expPrin = next.principal;
+
+            if (val >= expInt) {
+                setPayInterest(expInt.toFixed(2));
+                const rem = val - expInt;
+                if (rem >= expPrin) {
+                    setPayPrincipal(expPrin.toFixed(2));
+                    setPayExtra((rem - expPrin).toFixed(2));
+                } else {
+                    setPayPrincipal(rem.toFixed(2));
+                    setPayExtra("0");
+                }
+            } else {
+                setPayInterest(val.toFixed(2));
+                const shortfall = expInt - val;
+                // Capitalize unpaid interest by having negative principal
+                setPayPrincipal((-shortfall).toFixed(2));
+                setPayExtra("0");
+            }
+        }
+    };
+
     // Calculate Amortization logic
     const generateAmortizationSchedule = () => {
         if (!loanData) return [];
 
         const schedule = [];
         let currentPrincipal = loanData.principal_amount;
-        // EA to monthly
-        const monthlyRate = Math.pow(1 + (loanData.interest_rate_annual / 100), 1 / 12) - 1;
 
-        let remainingAmortizingTerm = Math.max(1, loanData.term_months - loanData.grace_period_months);
-        let graceRemaining = loanData.grace_period_months;
+        let monthlyRate = 0;
+        if (loanData.interest_rate_annual > 0) {
+            // Tasa Efectiva Anual (EA) a Efectiva Mensual
+            monthlyRate = Math.pow(1 + (loanData.interest_rate_annual / 100), 1 / 12) - 1;
+        }
 
-        // Apply Historical Payments first
+        let totalTerm = loanData.term_months;
+        let graceTotal = loanData.grace_period_months;
+        let amortizingTermOriginal = Math.max(1, totalTerm - graceTotal);
+
+        // Original PMT (for French)
+        let originalPmt = 0;
+        if (monthlyRate > 0) {
+            originalPmt = (loanData.principal_amount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -amortizingTermOriginal));
+        } else {
+            originalPmt = loanData.principal_amount / amortizingTermOriginal;
+        }
+
+        // Original Fixed Principal (for German)
+        let originalFixedPrincipal = loanData.principal_amount / amortizingTermOriginal;
+
         let totalPaidValue = 0;
         let totalInterestPaid = 0;
 
+        let monthsElapsed = 0;
+        let graceElapsed = 0;
+
+        let currentPmt = originalPmt;
+        let currentFixedPrincipal = originalFixedPrincipal;
+
         for (const p of payments) {
+            monthsElapsed++;
+            if (graceElapsed < graceTotal) {
+                graceElapsed++;
+            }
+
             currentPrincipal -= (p.principal_amount + (p.extra_principal_amount || 0));
             totalPaidValue += p.payment_amount;
             totalInterestPaid += p.interest_amount;
 
-            if (graceRemaining > 0) graceRemaining--;
-            else {
-                if (p.extra_principal_amount > 0 && p.extra_action === 'reduce_term') {
-                    // Approximate term reduction: very complex to do perfectly, simple heuristic:
-                    // If they paid X extra, skip Y months of principal payment. 
-                    // Actually, recalculate remaining term based on new principal and current installment.
-                } else {
-                    remainingAmortizingTerm--;
+            // Recalculate Future Installment ONLY if the user specifically chose to REDUCE INSTALLMENT and NOT term.
+            // If they Reduce Term, the parameters stay exactly the same, they'll just pay the loan off much faster.
+            if (p.extra_principal_amount > 0 && p.extra_action === 'reduce_installment') {
+                let remainingAmortizing = amortizingTermOriginal - Math.max(0, monthsElapsed - graceTotal);
+                if (remainingAmortizing > 0 && currentPrincipal > 0) {
+                    if (monthlyRate > 0) {
+                        currentPmt = (currentPrincipal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainingAmortizing));
+                    } else {
+                        currentPmt = currentPrincipal / remainingAmortizing;
+                    }
+                    currentFixedPrincipal = currentPrincipal / remainingAmortizing;
                 }
             }
         }
 
-        // Generate Future Schedule loosely
-        let month = payments.length + 1;
-        let iterPrincipal = Math.max(0, currentPrincipal);
+        const snapshotPrincipalPostPayments = Math.max(0, currentPrincipal);
 
-        while (iterPrincipal > 0.1 && (graceRemaining > 0 || remainingAmortizingTerm > 0)) {
+        // Generate Future Schedule
+        let month = monthsElapsed + 1;
+        let graceRemaining = graceTotal - graceElapsed;
+        let iterPrincipal = snapshotPrincipalPostPayments;
+
+        while (iterPrincipal > 0.01) {
             let interest = iterPrincipal * monthlyRate;
             let principal = 0;
             let installment = 0;
 
             if (graceRemaining > 0) {
-                installment = interest; // Only pay interest
+                installment = interest;
                 principal = 0;
                 graceRemaining--;
             } else {
                 if (loanData.amortization_type === 'french') {
-                    // PMT = P * r / (1 - (1+r)^-n)
-                    const pmt = (iterPrincipal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainingAmortizingTerm));
-                    installment = pmt;
-                    principal = pmt - interest;
-                } else { // german
-                    principal = iterPrincipal / remainingAmortizingTerm;
+                    installment = currentPmt;
+                    principal = installment - interest;
+                } else {
+                    principal = currentFixedPrincipal;
                     installment = principal + interest;
                 }
 
-                // Last month correction
+                // Last month correction or if payment easily covers remaining principal
                 if (principal > iterPrincipal) {
                     principal = iterPrincipal;
                     installment = principal + interest;
                 }
-
-                remainingAmortizingTerm--;
             }
 
             iterPrincipal -= principal;
@@ -174,13 +243,29 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
             });
 
             month++;
-            if (month > 360) break; // Safety net
+            if (month > 480) break; // Safety limit (40 years max)
         }
 
-        return { schedule, currentPrincipal, totalPaidValue, totalInterestPaid };
+        return { schedule, currentPrincipal: snapshotPrincipalPostPayments, totalPaidValue, totalInterestPaid, nextExpected: schedule.length > 0 ? schedule[0] : null };
     };
 
-    const { schedule, currentPrincipal, totalPaidValue, totalInterestPaid } = generateAmortizationSchedule() as any || { schedule: [], currentPrincipal: 0 };
+    const { schedule, currentPrincipal, totalPaidValue, totalInterestPaid, nextExpected } = generateAmortizationSchedule() as any || { schedule: [], currentPrincipal: 0 };
+
+    const handleOpenPaymentModal = () => {
+        setPayDate(new Date().toISOString().split('T')[0]);
+        if (nextExpected) {
+            setPayTotal(nextExpected.installment.toFixed(2));
+            setPayPrincipal(nextExpected.principal.toFixed(2));
+            setPayInterest(nextExpected.interest.toFixed(2));
+            setPayExtra("0");
+        } else {
+            setPayTotal("");
+            setPayPrincipal("");
+            setPayInterest("");
+            setPayExtra("0");
+        }
+        setShowPaymentModal(true);
+    };
 
     if (loading) {
         return <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">Cargando detalles de préstamo...</div>;
@@ -335,7 +420,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
             {/* Fab for Add Payment */}
             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20">
                 <Button
-                    onClick={() => setShowPaymentModal(true)}
+                    onClick={handleOpenPaymentModal}
                     className="h-14 px-8 rounded-full bg-brand-blue hover:bg-brand-blue/90 text-white font-bold shadow-lg shadow-brand-blue/20 flex gap-2 transition-all hover:-translate-y-1"
                 >
                     <HandCoins size={20} />
@@ -349,9 +434,33 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowPaymentModal(false)}></div>
                     <form onSubmit={handleRegisterPayment} className="bg-card w-full sm:w-[500px] h-[90vh] sm:h-auto sm:max-h-[85vh] rounded-t-[32px] sm:rounded-[36px] p-6 sm:p-8 relative z-10 flex flex-col animate-in slide-in-from-bottom-5 border border-border/20">
                         <div className="w-16 h-1.5 bg-muted rounded-full mx-auto mb-6 sm:hidden"></div>
-                        <h2 className="text-2xl font-bold text-foreground mb-6 shrink-0">Registrar Pago</h2>
+                        <h2 className="text-2xl font-bold text-foreground mb-1 shrink-0">Registrar Pago</h2>
+
+                        {nextExpected && (
+                            <p className="text-sm font-medium text-muted-foreground mb-6">
+                                Cuota Esperada (Mes {nextExpected.month}): <strong className="text-foreground">{formatCurrency(nextExpected.installment, currency)}</strong>
+                            </p>
+                        )}
+                        {!nextExpected && <div className="mb-6"></div>}
 
                         <div className="flex-1 overflow-y-auto space-y-5 custom-scrollbar pb-6 pr-2">
+                            <div>
+                                <label className="block text-sm font-bold text-foreground mb-2 ml-2">Total Efectivamente Recibido</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    required
+                                    value={payTotal}
+                                    onChange={e => handlePayTotalChange(e.target.value)}
+                                    placeholder="0.00"
+                                    className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-brand-blue/20 transition-all text-xl"
+                                    disabled={saving}
+                                />
+                                <p className="text-[11px] text-muted-foreground ml-2 mt-1.5 leading-tight">
+                                    Introduce cuánto recibiste. El sistema distribuirá automáticamente a intereses, capital y abonos extras o re-financiará el saldo según corresponda.
+                                </p>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Fecha del Pago</label>
                                 <input
@@ -364,47 +473,34 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-blue-500 mb-2 ml-2">Abono Normal Capital</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        required
-                                        value={payPrincipal}
-                                        onChange={e => setPayPrincipal(e.target.value)}
-                                        placeholder="0.00"
-                                        className="w-full h-14 bg-blue-500/10 border border-transparent rounded-2xl px-5 text-blue-500 font-bold outline-none focus:border-blue-500/50 focus:bg-card focus:ring-2 focus:ring-blue-500/20 transition-all text-lg"
-                                        disabled={saving}
-                                    />
+                            <div className="bg-muted/30 border border-border/50 rounded-2xl p-4 space-y-4">
+                                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">Distribución Automática</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-orange-500 mb-1.5 ml-1">Interés Cubierto</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            required
+                                            value={payInterest}
+                                            onChange={e => setPayInterest(e.target.value)}
+                                            className="w-full h-11 bg-orange-500/10 border border-transparent rounded-xl px-4 text-orange-500 font-bold outline-none focus:border-orange-500/50 transition-all text-sm"
+                                            disabled={saving}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-blue-500 mb-1.5 ml-1">Capital Abonado</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            required
+                                            value={payPrincipal}
+                                            onChange={e => setPayPrincipal(e.target.value)}
+                                            className="w-full h-11 bg-blue-500/10 border border-transparent rounded-xl px-4 text-blue-500 font-bold outline-none focus:border-blue-500/50 transition-all text-sm"
+                                            disabled={saving}
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-orange-500 mb-2 ml-2">Pago de Interés</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        required
-                                        value={payInterest}
-                                        onChange={e => setPayInterest(e.target.value)}
-                                        placeholder="0.00"
-                                        className="w-full h-14 bg-orange-500/10 border border-transparent rounded-2xl px-5 text-orange-500 font-bold outline-none focus:border-orange-500/50 focus:bg-card focus:ring-2 focus:ring-orange-500/20 transition-all text-lg"
-                                        disabled={saving}
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-foreground mb-2 ml-2">Total Pagado Cuota Normal (Suma)</label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    required
-                                    value={payTotal}
-                                    onChange={e => setPayTotal(e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-brand-blue/20 transition-all text-xl"
-                                    disabled={saving}
-                                />
                             </div>
 
                             <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-5 space-y-4">

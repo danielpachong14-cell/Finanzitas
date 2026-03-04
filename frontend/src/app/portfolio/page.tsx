@@ -11,6 +11,7 @@ import { Plus, Briefcase, Activity, Flame, ShieldAlert, PlusCircle, Building, Wa
 import { Button } from "@/components/ui/button";
 import { FinancialAssetDashboard } from "./FinancialAssetDashboard";
 import { LoanAssetDashboard } from "./LoanAssetDashboard";
+import LoanAssetPreviewCard from "./LoanAssetPreviewCard";
 import { PhysicalAssetCard } from "./PhysicalAssetCard";
 import { TransferModal } from "@/components/ui/TransferModal";
 import dynamic from 'next/dynamic';
@@ -524,35 +525,38 @@ export default function PortfolioPage() {
                                                             <span className="text-sm font-black text-foreground">{formatPrivacyCurrency(groupTotal, currency, hideBalances)}</span>
                                                         </div>
                                                         <div className="space-y-3">
-                                                            {groupAssets.map(asset => (
-                                                                <div key={asset.id} onClick={() => handleAssetClick(asset)} className="bg-card border border-border/50 rounded-[24px] p-4 flex items-center justify-between hover:border-primary/50 transition-colors group cursor-pointer shadow-sm hover:shadow-md">
-                                                                    <div>
-                                                                        <p className="font-bold text-foreground text-[17px] flex items-center">
-                                                                            {asset.name}
-                                                                            {asset.type === 'digital' && asset.digital_type === 'loan' && (
-                                                                                <span className="ml-2 text-[10px] uppercase font-bold bg-brand-blue/10 text-brand-blue px-2 py-0.5 rounded-md">Préstamo</span>
-                                                                            )}
-                                                                            {asset.type === 'digital' && asset.digital_type === 'investment' && (
-                                                                                <span className="ml-2 text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-md">Inversión</span>
-                                                                            )}
-                                                                        </p>
-                                                                        <div className="flex space-x-2 mt-1.5 items-center">
-                                                                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${asset.liquidity_layer === 'L1_immediate' ? 'bg-emerald-500/10 text-emerald-500' :
-                                                                                asset.liquidity_layer === 'L2_medium' ? 'bg-brand-orange/10 text-brand-orange' :
-                                                                                    'bg-brand-blue/10 text-brand-blue'
-                                                                                }`}>
-                                                                                {asset.liquidity_layer.split('_')[0]}
-                                                                            </span>
-                                                                            <span className="text-[11px] text-emerald-500 font-bold">
-                                                                                {asset.interest_rate_nominal > 0 ? `+${asset.interest_rate_nominal}% EA` : '0% EA'}
-                                                                            </span>
+                                                            {groupAssets.map(asset => {
+                                                                if (asset.type === 'digital' && asset.digital_type === 'loan') {
+                                                                    return <LoanAssetPreviewCard key={asset.id} asset={asset} currency={currency} hideBalances={hideBalances} formatPrivacyCurrency={formatPrivacyCurrency} onClick={() => handleAssetClick(asset)} />;
+                                                                }
+
+                                                                return (
+                                                                    <div key={asset.id} onClick={() => handleAssetClick(asset)} className="bg-card border border-border/50 rounded-[24px] p-4 flex items-center justify-between hover:border-primary/50 transition-colors group cursor-pointer shadow-sm hover:shadow-md">
+                                                                        <div>
+                                                                            <p className="font-bold text-foreground text-[17px] flex items-center">
+                                                                                {asset.name}
+                                                                                {asset.type === 'digital' && asset.digital_type === 'investment' && (
+                                                                                    <span className="ml-2 text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-md">Inversión</span>
+                                                                                )}
+                                                                            </p>
+                                                                            <div className="flex space-x-2 mt-1.5 items-center">
+                                                                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${asset.liquidity_layer === 'L1_immediate' ? 'bg-emerald-500/10 text-emerald-500' :
+                                                                                    asset.liquidity_layer === 'L2_medium' ? 'bg-brand-orange/10 text-brand-orange' :
+                                                                                        'bg-brand-blue/10 text-brand-blue'
+                                                                                    }`}>
+                                                                                    {asset.liquidity_layer.split('_')[0]}
+                                                                                </span>
+                                                                                <span className="text-[11px] text-emerald-500 font-bold">
+                                                                                    {asset.interest_rate_nominal > 0 ? `+${asset.interest_rate_nominal}% EA` : '0% EA'}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="text-right flex flex-col items-end">
+                                                                            <p className="font-black text-foreground text-lg tracking-tight">{formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}</p>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="text-right flex flex-col items-end">
-                                                                        <p className="font-black text-foreground text-lg tracking-tight">{formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}</p>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </div>
                                                     </div>
                                                 );
