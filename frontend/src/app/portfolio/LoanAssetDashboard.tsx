@@ -106,7 +106,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
         // EA to monthly
         const monthlyRate = Math.pow(1 + (loanData.interest_rate_annual / 100), 1 / 12) - 1;
 
-        let remainingTerm = loanData.term_months;
+        let remainingAmortizingTerm = Math.max(1, loanData.term_months - loanData.grace_period_months);
         let graceRemaining = loanData.grace_period_months;
 
         // Apply Historical Payments first
@@ -125,7 +125,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                     // If they paid X extra, skip Y months of principal payment. 
                     // Actually, recalculate remaining term based on new principal and current installment.
                 } else {
-                    remainingTerm--;
+                    remainingAmortizingTerm--;
                 }
             }
         }
@@ -134,7 +134,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
         let month = payments.length + 1;
         let iterPrincipal = Math.max(0, currentPrincipal);
 
-        while (iterPrincipal > 0.1 && remainingTerm > 0) {
+        while (iterPrincipal > 0.1 && (graceRemaining > 0 || remainingAmortizingTerm > 0)) {
             let interest = iterPrincipal * monthlyRate;
             let principal = 0;
             let installment = 0;
@@ -146,11 +146,11 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
             } else {
                 if (loanData.amortization_type === 'french') {
                     // PMT = P * r / (1 - (1+r)^-n)
-                    const pmt = (iterPrincipal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainingTerm));
+                    const pmt = (iterPrincipal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainingAmortizingTerm));
                     installment = pmt;
                     principal = pmt - interest;
                 } else { // german
-                    principal = iterPrincipal / remainingTerm;
+                    principal = iterPrincipal / remainingAmortizingTerm;
                     installment = principal + interest;
                 }
 
@@ -160,7 +160,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                     installment = principal + interest;
                 }
 
-                remainingTerm--;
+                remainingAmortizingTerm--;
             }
 
             iterPrincipal -= principal;
