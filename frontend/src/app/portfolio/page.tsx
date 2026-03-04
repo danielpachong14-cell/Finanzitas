@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ApiClient, Asset, Institution } from "@/core/api/ApiClient";
+import { ApiClient, Asset, Institution, LoanOptions } from "@/core/api/ApiClient";
 import { useAssets, useInstitutions, PORTFOLIO_KEYS } from "@/core/hooks/useQueries";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserOptions } from "@/core/context/UserContext";
@@ -10,6 +10,7 @@ import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { Plus, Briefcase, Activity, Flame, ShieldAlert, PlusCircle, Building, Wallet, LayoutGrid, Pencil, Trash2, List, AlignJustify, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FinancialAssetDashboard } from "./FinancialAssetDashboard";
+import { LoanAssetDashboard } from "./LoanAssetDashboard";
 import { PhysicalAssetCard } from "./PhysicalAssetCard";
 import { TransferModal } from "@/components/ui/TransferModal";
 import dynamic from 'next/dynamic';
@@ -78,7 +79,7 @@ export default function PortfolioPage() {
     };
 
     const handleAssetClick = (asset: Asset) => {
-        if (asset.type === 'financial') {
+        if (asset.type === 'financial' || (asset.type === 'digital' && asset.digital_type === 'loan')) {
             setDashboardAsset(asset);
         } else {
             openEditModal(asset);
@@ -127,7 +128,7 @@ export default function PortfolioPage() {
         }
     };
 
-    const handleSaveAsset = async (payload: Partial<Asset>, instId: string, customInstName: string) => {
+    const handleSaveAsset = async (payload: Partial<Asset>, instId: string, customInstName: string, loanPayload?: Partial<LoanOptions>) => {
         try {
             let finalInstId = instId;
 
@@ -146,11 +147,23 @@ export default function PortfolioPage() {
             if (editingAsset) {
                 await ApiClient.updateAsset(editingAsset.id, completePayload);
             } else {
-                await ApiClient.createAsset({
+                const newAsset = await ApiClient.createAsset({
                     currency: currency,
                     is_manual: true,
                     ...completePayload as any
                 });
+
+                if (loanPayload && completePayload.type === 'digital' && completePayload.digital_type === 'loan') {
+                    await ApiClient.createLoanDetails({
+                        asset_id: newAsset.id,
+                        debtor: loanPayload.debtor || "Deudor Desconocido",
+                        principal_amount: loanPayload.principal_amount || 0,
+                        term_months: loanPayload.term_months || 12,
+                        grace_period_months: loanPayload.grace_period_months || 0,
+                        amortization_type: loanPayload.amortization_type as any,
+                        interest_rate_annual: loanPayload.interest_rate_annual || 0
+                    });
+                }
             }
 
             setShowAddModal(false);
@@ -511,7 +524,15 @@ export default function PortfolioPage() {
                                                             {groupAssets.map(asset => (
                                                                 <div key={asset.id} onClick={() => handleAssetClick(asset)} className="bg-card border border-border/50 rounded-[24px] p-4 flex items-center justify-between hover:border-primary/50 transition-colors group cursor-pointer shadow-sm hover:shadow-md">
                                                                     <div>
-                                                                        <p className="font-bold text-foreground text-[17px]">{asset.name}</p>
+                                                                        <p className="font-bold text-foreground text-[17px] flex items-center">
+                                                                            {asset.name}
+                                                                            {asset.type === 'digital' && asset.digital_type === 'loan' && (
+                                                                                <span className="ml-2 text-[10px] uppercase font-bold bg-brand-blue/10 text-brand-blue px-2 py-0.5 rounded-md">Préstamo</span>
+                                                                            )}
+                                                                            {asset.type === 'digital' && asset.digital_type === 'investment' && (
+                                                                                <span className="ml-2 text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-md">Inversión</span>
+                                                                            )}
+                                                                        </p>
                                                                         <div className="flex space-x-2 mt-1.5 items-center">
                                                                             <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${asset.liquidity_layer === 'L1_immediate' ? 'bg-emerald-500/10 text-emerald-500' :
                                                                                 asset.liquidity_layer === 'L2_medium' ? 'bg-brand-orange/10 text-brand-orange' :
@@ -602,7 +623,8 @@ export default function PortfolioPage() {
                 </Suspense>
 
                 {/* ADVANCED FINANCIAL DASHBOARD */}
-                {dashboardAsset && (
+                {/* ADVANCED FINANCIAL DASHBOARD */}
+                {dashboardAsset && dashboardAsset.type === 'financial' && (
                     <FinancialAssetDashboard
                         asset={dashboardAsset}
                         currency={currency}
@@ -613,6 +635,20 @@ export default function PortfolioPage() {
                             openEditModal(dashboardAsset);
                         }}
                         onTransfer={() => openTransferModal(dashboardAsset.id)}
+                    />
+                )}
+
+                {/* ADVANCED LOANS DASHBOARD */}
+                {dashboardAsset && dashboardAsset.type === 'digital' && dashboardAsset.digital_type === 'loan' && (
+                    <LoanAssetDashboard
+                        asset={dashboardAsset}
+                        currency={currency}
+                        onClose={() => setDashboardAsset(null)}
+                        onUpdate={invalidateData}
+                        onEdit={() => {
+                            setDashboardAsset(null);
+                            openEditModal(dashboardAsset);
+                        }}
                     />
                 )}
 

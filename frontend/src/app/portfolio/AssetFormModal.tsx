@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Asset, Institution } from "@/core/api/ApiClient";
+import { Asset, Institution, LoanOptions } from "@/core/api/ApiClient";
 import { Button } from "@/components/ui/button";
 
 interface AssetFormModalProps {
@@ -10,7 +10,7 @@ interface AssetFormModalProps {
     institutions: Institution[];
     activeTab: 'financial' | 'digital' | 'physical';
     onClose: () => void;
-    onSave: (payload: Partial<Asset>, instId: string, instName: string) => Promise<void>;
+    onSave: (payload: Partial<Asset>, instId: string, instName: string, loanPayload?: Partial<LoanOptions>) => Promise<void>;
     onDelete?: () => Promise<void>;
 }
 
@@ -35,6 +35,13 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
     const [newCreditAmount, setNewCreditAmount] = useState("");
     const [newCreditPaid, setNewCreditPaid] = useState("");
 
+    // Digital Asset State
+    const [newDigitalType, setNewDigitalType] = useState<'investment' | 'loan'>('investment');
+    const [loanDebtor, setLoanDebtor] = useState("");
+    const [loanTerm, setLoanTerm] = useState("12");
+    const [loanGrace, setLoanGrace] = useState("0");
+    const [loanAmortization, setLoanAmortization] = useState<'french' | 'german'>('french');
+
     useEffect(() => {
         if (isOpen) {
             if (editingAsset) {
@@ -47,6 +54,7 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                 setCreatingInstitution(false);
                 setNewIsPaymentAccount(editingAsset.is_payment_account || false);
                 setNewPhysicalType(editingAsset.physical_type || 'other');
+                setNewDigitalType(editingAsset.digital_type || 'investment');
                 setNewHasCredit(editingAsset.has_credit || false);
                 setNewCreditAmount(editingAsset.credit_amount?.toString() || "");
                 setNewCreditPaid(editingAsset.credit_paid?.toString() || "");
@@ -63,9 +71,14 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                 setNewOpeningDate(new Date().toISOString().split('T')[0]);
                 setNewIsPaymentAccount(false);
                 setNewPhysicalType('other');
+                setNewDigitalType('investment');
                 setNewHasCredit(false);
                 setNewCreditAmount("");
                 setNewCreditPaid("");
+                setLoanDebtor("");
+                setLoanTerm("12");
+                setLoanGrace("0");
+                setLoanAmortization('french');
             }
         }
     }, [isOpen, editingAsset, activeTab]);
@@ -98,9 +111,23 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                     payload.credit_amount = 0;
                     payload.credit_paid = 0;
                 }
+            } else if (newType === 'digital') {
+                payload.digital_type = newDigitalType;
             }
 
-            await onSave(payload, newInstitutionId, newInstName);
+            let loanPayload: Partial<LoanOptions> | undefined = undefined;
+            if (newType === 'digital' && newDigitalType === 'loan' && !editingAsset) {
+                loanPayload = {
+                    debtor: loanDebtor || "Deudor Desconocido",
+                    principal_amount: parseFloat(newVal) || 0,
+                    term_months: parseInt(loanTerm) || 12,
+                    interest_rate_annual: parseFloat(newRate) || 0,
+                    grace_period_months: parseInt(loanGrace) || 0,
+                    amortization_type: loanAmortization,
+                };
+            }
+
+            await onSave(payload, newInstitutionId, newInstName, loanPayload);
         } finally {
             setSaving(false);
         }
@@ -231,6 +258,85 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                             </select>
                         </div>
                     </div>
+
+                    {newType === 'digital' && (
+                        <div className="animate-in fade-in slide-in-from-top-2">
+                            <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Tipología Digital</label>
+                            <select
+                                value={newDigitalType}
+                                onChange={e => setNewDigitalType(e.target.value as any)}
+                                className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-base appearance-none"
+                                disabled={saving}
+                            >
+                                <option value="investment">Inversión (Cripto, Acciones, ETF)</option>
+                                <option value="loan">Préstamo Otorgado (Personal / Empresarial)</option>
+                            </select>
+                        </div>
+                    )}
+
+                    {newType === 'digital' && newDigitalType === 'loan' && !editingAsset && (
+                        <div className="bg-brand-blue/10 border border-brand-blue/30 rounded-2xl p-5 space-y-5 animate-in fade-in slide-in-from-top-2">
+                            <h3 className="font-bold text-brand-blue text-sm mb-2 flex items-center">
+                                Detalles del Préstamo Otorgado
+                            </h3>
+
+                            <div>
+                                <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Deudor / Entidad receptora</label>
+                                <input
+                                    type="text"
+                                    required={newType === 'digital' && newDigitalType === 'loan'}
+                                    value={loanDebtor}
+                                    onChange={e => setLoanDebtor(e.target.value)}
+                                    placeholder="Nombre de la persona o empresa"
+                                    className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
+                                    disabled={saving}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Plazo (Meses)</label>
+                                    <input
+                                        type="number"
+                                        required={newType === 'digital' && newDigitalType === 'loan'}
+                                        min="1"
+                                        value={loanTerm}
+                                        onChange={e => setLoanTerm(e.target.value)}
+                                        className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
+                                        disabled={saving}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Meses de Gracia</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={loanGrace}
+                                        onChange={e => setLoanGrace(e.target.value)}
+                                        className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
+                                        disabled={saving}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Sistema de Amortización</label>
+                                <select
+                                    value={loanAmortization}
+                                    onChange={e => setLoanAmortization(e.target.value as any)}
+                                    className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm appearance-none"
+                                    disabled={saving}
+                                >
+                                    <option value="french">Cuota Fija (Francesa)</option>
+                                    <option value="german">Abono a Capital Fijo (Alemana)</option>
+                                </select>
+                            </div>
+
+                            <p className="text-[11px] text-muted-foreground/80 leading-tight">
+                                Nota: El <strong className="text-muted-foreground">Monto</strong> prestado corresponde al "Valor Actual" y la <strong className="text-muted-foreground">Tasa</strong> equivale al "Rendimiento" que pusiste arriba.
+                            </p>
+                        </div>
+                    )}
 
                     {newType === 'physical' && (
                         <>

@@ -55,6 +55,7 @@ export interface Asset {
     name: string;
     type: 'financial' | 'digital' | 'physical';
     physical_type?: 'real_estate' | 'vehicle' | 'business' | 'tech' | 'jewelry' | 'other' | null;
+    digital_type?: 'investment' | 'loan' | null;
     liquidity_layer: 'L1_immediate' | 'L2_medium' | 'L3_low';
     currency: string;
     current_value: number;
@@ -84,6 +85,32 @@ export interface AssetMovement {
     amount: number;
     date: string;
     description?: string;
+    created_at?: string;
+}
+
+export interface LoanOptions {
+    id?: string;
+    asset_id: string;
+    user_id?: string;
+    debtor: string;
+    principal_amount: number;
+    term_months: number;
+    interest_rate_annual: number;
+    grace_period_months: number;
+    amortization_type: 'french' | 'german';
+    created_at?: string;
+}
+
+export interface LoanPayment {
+    id?: string;
+    asset_id: string;
+    user_id?: string;
+    date: string;
+    payment_amount: number;
+    principal_amount: number;
+    interest_amount: number;
+    extra_principal_amount: number;
+    extra_action?: 'reduce_term' | 'reduce_installment';
     created_at?: string;
 }
 
@@ -884,5 +911,111 @@ export class ApiClient {
             .eq('id', id);
 
         if (error) throw error;
+    }
+
+    // --- Loans ---
+
+    static async getLoanData(assetId: string): Promise<LoanOptions | null> {
+        const { data, error } = await supabase
+            .from('loans')
+            .select('*')
+            .eq('asset_id', assetId)
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null; // No rows found
+            console.error('Error fetching loan data:', error);
+            return null;
+        }
+
+        return data as LoanOptions;
+    }
+
+    static async createLoanDetails(loanData: Omit<LoanOptions, 'id' | 'user_id' | 'created_at'>): Promise<LoanOptions> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const { data, error } = await supabase
+            .from('loans')
+            .insert({
+                user_id: user.id,
+                ...loanData
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as LoanOptions;
+    }
+
+    static async updateLoanDetails(id: string, updates: Partial<LoanOptions>): Promise<LoanOptions> {
+        const { data, error } = await supabase
+            .from('loans')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as LoanOptions;
+    }
+
+    static async getLoanPayments(assetId: string): Promise<LoanPayment[]> {
+        const { data, error } = await supabase
+            .from('loan_payments')
+            .select('*')
+            .eq('asset_id', assetId)
+            .order('date', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching loan payments:', error);
+            return [];
+        }
+        return data as LoanPayment[];
+    }
+
+    static async registerLoanPayment(paymentData: Omit<LoanPayment, 'id' | 'user_id' | 'created_at'>): Promise<LoanPayment> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const { data, error } = await supabase
+            .from('loan_payments')
+            .insert({
+                user_id: user.id,
+                ...paymentData
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        try {
+            // Unify amounts
+            const principalAndExtra = Number(paymentData.principal_amount) + Number(paymentData.extra_principal_amount || 0);
+
+            // Fetch the asset to update its value
+            const { data: assetData } = await supabase.from('assets').select('current_value').eq('id', paymentData.asset_id).single();
+            if (assetData) {
+                const newCurrentValue = Number(assetData.current_value) - principalAndExtra;
+                await ApiClient.updateAsset(paymentData.asset_id, {
+                    current_value: Math.max(0, newCurrentValue)
+                });
+            }
+
+            // Record transaction representing the total payment cashflow
+            await ApiClient.createTransaction({
+                amount: Number(paymentData.payment_amount),
+                type: 'income',
+                category: 'Otros',
+                asset_id: paymentData.asset_id,
+                payment_type: 'debit',
+                date: paymentData.date,
+                description: `Pago o Abono de Préstamo (Capital: ${principalAndExtra}, Interés: ${paymentData.interest_amount})`
+            });
+        } catch (err) {
+            console.error("Error applying loan payment to system balances:", err);
+        }
+
+        return data as LoanPayment;
     }
 }
