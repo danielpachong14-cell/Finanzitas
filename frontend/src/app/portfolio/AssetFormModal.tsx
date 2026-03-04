@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Asset, Institution, LoanOptions } from "@/core/api/ApiClient";
+import { Asset, Institution, LoanOptions, ApiClient } from "@/core/api/ApiClient";
 import { Button } from "@/components/ui/button";
+import { Info, Loader2 } from "lucide-react";
 
 interface AssetFormModalProps {
     isOpen: boolean;
@@ -41,6 +42,8 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
     const [loanTerm, setLoanTerm] = useState("12");
     const [loanGrace, setLoanGrace] = useState("0");
     const [loanAmortization, setLoanAmortization] = useState<'french' | 'german'>('french');
+    const [loanHasPayments, setLoanHasPayments] = useState(false);
+    const [loadingLoanDetails, setLoadingLoanDetails] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -59,6 +62,26 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                 setNewCreditAmount(editingAsset.credit_amount?.toString() || "");
                 setNewCreditPaid(editingAsset.credit_paid?.toString() || "");
                 setNewOpeningDate("");
+
+                if (editingAsset.type === 'digital' && editingAsset.digital_type === 'loan') {
+                    setLoadingLoanDetails(true);
+                    Promise.all([
+                        ApiClient.getLoanData(editingAsset.id),
+                        ApiClient.getLoanPayments(editingAsset.id)
+                    ]).then(([data, pays]) => {
+                        if (data) {
+                            setLoanDebtor(data.debtor);
+                            setLoanTerm(data.term_months.toString());
+                            setLoanGrace(data.grace_period_months.toString());
+                            setLoanAmortization(data.amortization_type);
+                        }
+                        setLoanHasPayments(pays.length > 0);
+                        setLoadingLoanDetails(false);
+                    }).catch(err => {
+                        console.error("Error loading loan", err);
+                        setLoadingLoanDetails(false);
+                    });
+                }
             } else {
                 setNewName("");
                 setNewVal("");
@@ -116,7 +139,7 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
             }
 
             let loanPayload: Partial<LoanOptions> | undefined = undefined;
-            if (newType === 'digital' && newDigitalType === 'loan' && !editingAsset) {
+            if (newType === 'digital' && newDigitalType === 'loan' && (!editingAsset || !loanHasPayments)) {
                 loanPayload = {
                     debtor: loanDebtor || "Deudor Desconocido",
                     principal_amount: parseFloat(newVal) || 0,
@@ -274,67 +297,84 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                         </div>
                     )}
 
-                    {newType === 'digital' && newDigitalType === 'loan' && !editingAsset && (
+                    {newType === 'digital' && newDigitalType === 'loan' && (
                         <div className="bg-brand-blue/10 border border-brand-blue/30 rounded-2xl p-5 space-y-5 animate-in fade-in slide-in-from-top-2">
                             <h3 className="font-bold text-brand-blue text-sm mb-2 flex items-center">
                                 Detalles del Préstamo Otorgado
                             </h3>
 
-                            <div>
-                                <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Deudor / Entidad receptora</label>
-                                <input
-                                    type="text"
-                                    required={newType === 'digital' && newDigitalType === 'loan'}
-                                    value={loanDebtor}
-                                    onChange={e => setLoanDebtor(e.target.value)}
-                                    placeholder="Nombre de la persona o empresa"
-                                    className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
-                                    disabled={saving}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Plazo (Meses)</label>
-                                    <input
-                                        type="number"
-                                        required={newType === 'digital' && newDigitalType === 'loan'}
-                                        min="1"
-                                        value={loanTerm}
-                                        onChange={e => setLoanTerm(e.target.value)}
-                                        className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
-                                        disabled={saving}
-                                    />
+                            {loadingLoanDetails ? (
+                                <div className="flex justify-center items-center py-6 text-brand-blue/70">
+                                    <Loader2 className="animate-spin w-6 h-6 mr-2" /> Cargando detalles...
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Meses de Gracia</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={loanGrace}
-                                        onChange={e => setLoanGrace(e.target.value)}
-                                        className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
-                                        disabled={saving}
-                                    />
-                                </div>
-                            </div>
+                            ) : (
+                                <>
+                                    {loanHasPayments && (
+                                        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-500 text-xs font-bold p-3 rounded-xl flex items-start gap-2">
+                                            <Info size={16} className="shrink-0 mt-0.5" />
+                                            <span>
+                                                Este préstamo ya tiene pagos registrados, por lo que sus plazos, tasas y meses de gracia están <strong>bloqueados</strong>.
+                                            </span>
+                                        </div>
+                                    )}
 
-                            <div>
-                                <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Sistema de Amortización</label>
-                                <select
-                                    value={loanAmortization}
-                                    onChange={e => setLoanAmortization(e.target.value as any)}
-                                    className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm appearance-none"
-                                    disabled={saving}
-                                >
-                                    <option value="french">Cuota Fija (Francesa)</option>
-                                    <option value="german">Abono a Capital Fijo (Alemana)</option>
-                                </select>
-                            </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Deudor / Entidad receptora</label>
+                                        <input
+                                            type="text"
+                                            required={newType === 'digital' && newDigitalType === 'loan'}
+                                            value={loanDebtor}
+                                            onChange={e => setLoanDebtor(e.target.value)}
+                                            placeholder="Nombre de la persona o empresa"
+                                            className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
+                                            disabled={saving || loanHasPayments}
+                                        />
+                                    </div>
 
-                            <p className="text-[11px] text-muted-foreground/80 leading-tight">
-                                Nota: El <strong className="text-muted-foreground">Monto</strong> prestado corresponde al "Valor Actual" y la <strong className="text-muted-foreground">Tasa</strong> equivale al "Rendimiento" que pusiste arriba.
-                            </p>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Plazo (Meses)</label>
+                                            <input
+                                                type="number"
+                                                required={newType === 'digital' && newDigitalType === 'loan'}
+                                                min="1"
+                                                value={loanTerm}
+                                                onChange={e => setLoanTerm(e.target.value)}
+                                                className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
+                                                disabled={saving || loanHasPayments}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Meses de Gracia</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={loanGrace}
+                                                onChange={e => setLoanGrace(e.target.value)}
+                                                className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
+                                                disabled={saving || loanHasPayments}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Sistema de Amortización</label>
+                                        <select
+                                            value={loanAmortization}
+                                            onChange={e => setLoanAmortization(e.target.value as any)}
+                                            className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm appearance-none"
+                                            disabled={saving || loanHasPayments}
+                                        >
+                                            <option value="french">Cuota Fija (Francesa)</option>
+                                            <option value="german">Abono a Capital Fijo (Alemana)</option>
+                                        </select>
+                                    </div>
+
+                                    <p className="text-[11px] text-muted-foreground/80 leading-tight">
+                                        Nota: El <strong className="text-muted-foreground">Monto</strong> prestado corresponde al "Valor Actual" y la <strong className="text-muted-foreground">Tasa</strong> equivale al "Rendimiento" que pusiste arriba.
+                                    </p>
+                                </>
+                            )}
                         </div>
                     )}
 

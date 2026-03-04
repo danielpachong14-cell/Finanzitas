@@ -146,6 +146,9 @@ export default function PortfolioPage() {
 
             if (editingAsset) {
                 await ApiClient.updateAsset(editingAsset.id, completePayload);
+                if (loanPayload && completePayload.type === 'digital' && completePayload.digital_type === 'loan') {
+                    await ApiClient.updateLoanDetails(editingAsset.id, loanPayload);
+                }
             } else {
                 const newAsset = await ApiClient.createAsset({
                     currency: currency,

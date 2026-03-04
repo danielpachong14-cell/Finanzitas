@@ -948,11 +948,11 @@ export class ApiClient {
         return data as LoanOptions;
     }
 
-    static async updateLoanDetails(id: string, updates: Partial<LoanOptions>): Promise<LoanOptions> {
+    static async updateLoanDetails(asset_id: string, updates: Partial<LoanOptions>): Promise<LoanOptions> {
         const { data, error } = await supabase
             .from('loans')
             .update(updates)
-            .eq('id', id)
+            .eq('asset_id', asset_id)
             .select()
             .single();
 
