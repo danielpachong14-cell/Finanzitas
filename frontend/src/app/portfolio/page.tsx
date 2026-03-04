@@ -11,6 +11,8 @@ import { Plus, Briefcase, Activity, Flame, ShieldAlert, PlusCircle, Building, Wa
 import { Button } from "@/components/ui/button";
 import { FinancialAssetDashboard } from "./FinancialAssetDashboard";
 import { LoanAssetDashboard } from "./LoanAssetDashboard";
+import { CDTAssetDashboard } from "./CDTAssetDashboard";
+import { CDTAssetPreviewCard } from "./CDTAssetPreviewCard";
 import LoanAssetPreviewCard from "./LoanAssetPreviewCard";
 import { PhysicalAssetCard } from "./PhysicalAssetCard";
 import { TransferModal } from "@/components/ui/TransferModal";
@@ -129,7 +131,7 @@ export default function PortfolioPage() {
         }
     };
 
-    const handleSaveAsset = async (payload: Partial<Asset>, instId: string, customInstName: string, loanPayload?: Partial<LoanOptions>) => {
+    const handleSaveAsset = async (payload: Partial<Asset>, instId: string, customInstName: string, loanPayload?: Partial<LoanOptions>, cdtPayload?: any) => {
         try {
             let finalInstId = instId;
 
@@ -150,6 +152,9 @@ export default function PortfolioPage() {
                 if (loanPayload && completePayload.type === 'digital' && completePayload.digital_type === 'loan') {
                     await ApiClient.updateLoanDetails(editingAsset.id, loanPayload);
                 }
+                if (cdtPayload && completePayload.type === 'digital' && completePayload.digital_type === 'cdt') {
+                    await ApiClient.updateCdtDetails(editingAsset.id, cdtPayload);
+                }
             } else {
                 const newAsset = await ApiClient.createAsset({
                     currency: currency,
@@ -166,6 +171,15 @@ export default function PortfolioPage() {
                         grace_period_months: loanPayload.grace_period_months || 0,
                         amortization_type: loanPayload.amortization_type as any,
                         interest_rate_annual: loanPayload.interest_rate_annual || 0
+                    });
+                }
+
+                if (cdtPayload && completePayload.type === 'digital' && completePayload.digital_type === 'cdt') {
+                    await ApiClient.createCdtDetails({
+                        asset_id: newAsset.id,
+                        principal_amount: cdtPayload.principal_amount || 0,
+                        term_months: cdtPayload.term_months || null,
+                        term_days: cdtPayload.term_days || null,
                     });
                 }
             }
@@ -530,13 +544,20 @@ export default function PortfolioPage() {
                                                                     return <LoanAssetPreviewCard key={asset.id} asset={asset} currency={currency} hideBalances={hideBalances} formatPrivacyCurrency={formatPrivacyCurrency} onClick={() => handleAssetClick(asset)} />;
                                                                 }
 
+                                                                if (asset.type === 'digital' && (asset.digital_type === 'cdt' || (asset.digital_type === 'investment' && asset.cdt_details))) {
+                                                                    return <CDTAssetPreviewCard key={asset.id} asset={asset} currency={currency} hideBalances={hideBalances} formatPrivacyCurrency={formatPrivacyCurrency} onClick={() => handleAssetClick(asset)} />;
+                                                                }
+
                                                                 return (
                                                                     <div key={asset.id} onClick={() => handleAssetClick(asset)} className="bg-card border border-border/50 rounded-[24px] p-4 flex items-center justify-between hover:border-primary/50 transition-colors group cursor-pointer shadow-sm hover:shadow-md">
                                                                         <div>
                                                                             <p className="font-bold text-foreground text-[17px] flex items-center">
                                                                                 {asset.name}
-                                                                                {asset.type === 'digital' && asset.digital_type === 'investment' && (
+                                                                                {asset.type === 'digital' && asset.digital_type === 'investment' && !asset.cdt_details && (
                                                                                     <span className="ml-2 text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-md">Inversión</span>
+                                                                                )}
+                                                                                {asset.type === 'digital' && (asset.digital_type === 'cdt' || (asset.digital_type === 'investment' && asset.cdt_details)) && (
+                                                                                    <span className="ml-2 text-[10px] uppercase font-bold bg-brand-blue/10 text-brand-blue px-2 py-0.5 rounded-md">CDT</span>
                                                                                 )}
                                                                             </p>
                                                                             <div className="flex space-x-2 mt-1.5 items-center">
@@ -629,8 +650,7 @@ export default function PortfolioPage() {
                     />
                 </Suspense>
 
-                {/* ADVANCED FINANCIAL DASHBOARD */}
-                {/* ADVANCED FINANCIAL DASHBOARD */}
+                {/* ADVANCED FINANCIAL DASHBOARD (Only non-CDT) */}
                 {dashboardAsset && dashboardAsset.type === 'financial' && (
                     <FinancialAssetDashboard
                         asset={dashboardAsset}
@@ -642,6 +662,35 @@ export default function PortfolioPage() {
                             openEditModal(dashboardAsset);
                         }}
                         onTransfer={() => openTransferModal(dashboardAsset.id)}
+                    />
+                )}
+
+                {/* ADVANCED DIGITAL INVESTMENT (Non-CDT) */}
+                {dashboardAsset && dashboardAsset.type === 'digital' && dashboardAsset.digital_type === 'investment' && !dashboardAsset.cdt_details && (
+                    <FinancialAssetDashboard
+                        asset={dashboardAsset}
+                        currency={currency}
+                        onClose={() => setDashboardAsset(null)}
+                        onUpdate={invalidateData}
+                        onEdit={() => {
+                            setDashboardAsset(null);
+                            openEditModal(dashboardAsset);
+                        }}
+                        onTransfer={() => openTransferModal(dashboardAsset.id)}
+                    />
+                )}
+
+                {/* ADVANCED CDT DASHBOARD */}
+                {dashboardAsset && dashboardAsset.type === 'digital' && (dashboardAsset.digital_type === 'cdt' || (dashboardAsset.digital_type === 'investment' && dashboardAsset.cdt_details)) && (
+                    <CDTAssetDashboard
+                        asset={dashboardAsset}
+                        currency={currency}
+                        onClose={() => setDashboardAsset(null)}
+                        onUpdate={invalidateData}
+                        onEdit={() => {
+                            setDashboardAsset(null);
+                            openEditModal(dashboardAsset);
+                        }}
                     />
                 )}
 

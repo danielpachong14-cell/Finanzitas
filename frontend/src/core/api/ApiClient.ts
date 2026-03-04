@@ -55,7 +55,7 @@ export interface Asset {
     name: string;
     type: 'financial' | 'digital' | 'physical';
     physical_type?: 'real_estate' | 'vehicle' | 'business' | 'tech' | 'jewelry' | 'other' | null;
-    digital_type?: 'investment' | 'loan' | null;
+    digital_type?: 'investment' | 'loan' | 'cdt' | null;
     liquidity_layer: 'L1_immediate' | 'L2_medium' | 'L3_low';
     currency: string;
     current_value: number;
@@ -68,6 +68,8 @@ export interface Asset {
     credit_paid?: number;
     created_at?: string;
     updated_at?: string;
+    loan_options?: LoanOptions; // Added conceptually for typing if nested
+    cdt_details?: CdtDetails;
 }
 
 export interface AssetSnapshot {
@@ -97,7 +99,7 @@ export interface LoanOptions {
     term_months: number;
     interest_rate_annual: number;
     grace_period_months: number;
-    amortization_type: 'french' | 'german';
+    amortization_type: 'french' | 'german' | 'none';
     created_at?: string;
 }
 
@@ -110,7 +112,17 @@ export interface LoanPayment {
     principal_amount: number;
     interest_amount: number;
     extra_principal_amount: number;
-    extra_action?: 'reduce_term' | 'reduce_installment';
+    extra_action?: 'reduce_term' | 'reduce_installment' | 'advance';
+    created_at?: string;
+}
+
+export interface CdtDetails {
+    id?: string;
+    asset_id: string;
+    user_id?: string;
+    principal_amount: number;
+    term_months: number | null;
+    term_days: number | null;
     created_at?: string;
 }
 
@@ -759,7 +771,10 @@ export class ApiClient {
 
         const { data, error } = await supabase
             .from('assets')
-            .select('*')
+            .select(`
+                *,
+                cdt_details:cdts(*)
+            `)
             .eq('user_id', user.id)
             .order('created_at', { ascending: false });
 
@@ -768,7 +783,12 @@ export class ApiClient {
             return [];
         }
 
-        return data as Asset[];
+        console.log("RAW ASSETS FROM SUPABASE:", data.filter(d => d.type === 'digital'));
+
+        return data.map((item: any) => ({
+            ...item,
+            cdt_details: item.cdt_details ? (Array.isArray(item.cdt_details) ? item.cdt_details[0] : item.cdt_details) : undefined
+        })) as Asset[];
     }
 
     static async createAsset(assetData: Omit<Asset, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<Asset> {
@@ -949,15 +969,27 @@ export class ApiClient {
     }
 
     static async updateLoanDetails(asset_id: string, updates: Partial<LoanOptions>): Promise<LoanOptions> {
-        const { data, error } = await supabase
-            .from('loans')
-            .update(updates)
-            .eq('asset_id', asset_id)
-            .select()
-            .single();
+        const { data: existing } = await supabase.from('loans').select('id').eq('asset_id', asset_id).maybeSingle();
 
-        if (error) throw error;
-        return data as LoanOptions;
+        if (existing) {
+            const { data, error } = await supabase
+                .from('loans')
+                .update(updates)
+                .eq('asset_id', asset_id)
+                .select()
+                .single();
+            if (error) throw error;
+            return data as LoanOptions;
+        } else {
+            const { data: { user } } = await supabase.auth.getUser();
+            const { data, error } = await supabase
+                .from('loans')
+                .insert({ user_id: user?.id, asset_id, ...updates })
+                .select()
+                .single();
+            if (error) throw error;
+            return data as LoanOptions;
+        }
     }
 
     static async getLoanPayments(assetId: string): Promise<LoanPayment[]> {
@@ -1017,5 +1049,61 @@ export class ApiClient {
         }
 
         return data as LoanPayment;
+    }
+
+    // --- CDTs ---
+    static async getCdtDetails(assetId: string): Promise<CdtDetails | null> {
+        const { data, error } = await supabase
+            .from('cdts')
+            .select('*')
+            .eq('asset_id', assetId)
+            .single();
+
+        if (error) {
+            console.error('Error fetching cdt details:', error);
+            return null;
+        }
+        return data as CdtDetails;
+    }
+
+    static async createCdtDetails(cdtData: Omit<CdtDetails, 'id' | 'user_id' | 'created_at'>): Promise<CdtDetails> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const { data, error } = await supabase
+            .from('cdts')
+            .insert({
+                user_id: user.id,
+                ...cdtData
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as CdtDetails;
+    }
+
+    static async updateCdtDetails(asset_id: string, updates: Partial<CdtDetails>): Promise<CdtDetails> {
+        const { data: existing } = await supabase.from('cdts').select('id').eq('asset_id', asset_id).maybeSingle();
+
+        if (existing) {
+            const { data, error } = await supabase
+                .from('cdts')
+                .update(updates)
+                .eq('asset_id', asset_id)
+                .select()
+                .single();
+            if (error) throw error;
+            return data as CdtDetails;
+        } else {
+            const { data: { user } } = await supabase.auth.getUser();
+            const { data, error } = await supabase
+                .from('cdts')
+                .insert({ user_id: user?.id, asset_id, ...updates })
+                .select()
+                .single();
+            if (error) throw error;
+            return data as CdtDetails;
+        }
     }
 }

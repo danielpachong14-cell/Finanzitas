@@ -5,6 +5,7 @@ import { ApiClient, Asset, LoanOptions, LoanPayment } from "@/core/api/ApiClient
 import { formatCurrency } from "@/lib/utils";
 import { ArrowLeft, HandCoins, Info, History, FileText, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { eaToMonthlyRate } from "@/core/finance/interestCalculator";
 
 interface Props {
     asset: Asset;
@@ -21,8 +22,15 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
 
     const [activeTab, setActiveTab] = useState<'schedule' | 'history'>('schedule');
 
+    useEffect(() => {
+        if (loanData?.amortization_type === 'none') {
+            setActiveTab('history');
+        }
+    }, [loanData]);
+
     // Register Payment Modal
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [isAdvanceMode, setIsAdvanceMode] = useState(false);
     const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
     const [payTotal, setPayTotal] = useState("");
     const [payPrincipal, setPayPrincipal] = useState("");
@@ -54,16 +62,27 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
     const handleRegisterPayment = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
-        const pTotal = Number(payTotal);
-        const pPrin = Number(payPrincipal);
-        const pInt = Number(payInterest);
-        const pExtra = Number(payExtra) || 0;
 
-        // Safety check
-        if (Math.abs(pTotal - (pPrin + pInt + pExtra)) > 0.05) {
-            alert("Los valores de Principal, Interés y Extra no suman el Total Pagado. Por favor revisa los montos.");
-            setSaving(false);
-            return;
+        let pTotal = Number(payTotal);
+        let pPrin = Number(payPrincipal);
+        let pInt = Number(payInterest);
+        let pExtra = Number(payExtra) || 0;
+        let eAction: 'reduce_term' | 'reduce_installment' | 'advance' | undefined = pExtra > 0 ? extraAction : undefined;
+
+        if (isAdvanceMode) {
+            // An advance is effectively negative payment (more money lent out)
+            pTotal = -Math.abs(pTotal);
+            pPrin = pTotal;
+            pInt = 0;
+            pExtra = 0;
+            eAction = 'advance';
+        } else {
+            // Safety check for normal payments
+            if (Math.abs(pTotal - (pPrin + pInt + pExtra)) > 0.05) {
+                alert("Los valores de Principal, Interés y Extra no suman el Total Pagado. Por favor revisa los montos.");
+                setSaving(false);
+                return;
+            }
         }
 
         try {
@@ -74,7 +93,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                 principal_amount: pPrin,
                 interest_amount: pInt,
                 extra_principal_amount: pExtra,
-                extra_action: pExtra > 0 ? extraAction : undefined
+                extra_action: eAction as any
             });
 
             setShowPaymentModal(false);
@@ -147,8 +166,8 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
 
         let monthlyRate = 0;
         if (loanData.interest_rate_annual > 0) {
-            // Tasa Efectiva Anual (EA) a Efectiva Mensual
-            monthlyRate = Math.pow(1 + (loanData.interest_rate_annual / 100), 1 / 12) - 1;
+            // Tasa Efectiva Mensual derivada de EA usando fórmula centralizada
+            monthlyRate = eaToMonthlyRate(loanData.interest_rate_annual);
         }
 
         let totalTerm = loanData.term_months;
@@ -265,6 +284,17 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
             setPayExtra("0");
         }
         setShowPaymentModal(true);
+        setIsAdvanceMode(false);
+    };
+
+    const handleOpenAdvanceModal = () => {
+        setPayDate(new Date().toISOString().split('T')[0]);
+        setPayTotal("");
+        setPayPrincipal("");
+        setPayInterest("0");
+        setPayExtra("0");
+        setIsAdvanceMode(true);
+        setShowPaymentModal(true);
     };
 
     if (loading) {
@@ -326,26 +356,38 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                         </div>
 
                         {/* Tabs */}
-                        <div className="flex gap-2 mb-6 border-b border-border/50 pb-px">
-                            <button
-                                onClick={() => setActiveTab('schedule')}
-                                className={`px-4 py-3 font-bold text-sm border-b-2 transition-all ${activeTab === 'schedule' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <FileText size={16} /> Plan Proyectado
-                                </div>
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('history')}
-                                className={`px-4 py-3 font-bold text-sm border-b-2 transition-all ${activeTab === 'history' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <History size={16} /> Historial Pagos
-                                </div>
-                            </button>
-                        </div>
+                        {loanData.amortization_type !== 'none' ? (
+                            <div className="flex gap-2 mb-6 border-b border-border/50 pb-px">
+                                <button
+                                    onClick={() => setActiveTab('schedule')}
+                                    className={`px-4 py-3 font-bold text-sm border-b-2 transition-all ${activeTab === 'schedule' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <FileText size={16} /> Plan Proyectado
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('history')}
+                                    className={`px-4 py-3 font-bold text-sm border-b-2 transition-all ${activeTab === 'history' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <History size={16} /> Historial Pagos
+                                    </div>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="mb-6 border-b border-border/50 pb-3">
+                                <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                                    <History size={20} className="text-brand-blue" />
+                                    Libro Mayor de Movimientos
+                                </h3>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Este préstamo es de tipo abierto. Aquí se reflejan todos los pagos recibidos y los desembolsos extra realizados.
+                                </p>
+                            </div>
+                        )}
 
-                        {activeTab === 'schedule' && (
+                        {activeTab === 'schedule' && loanData.amortization_type !== 'none' && (
                             <div className="bg-card border border-border/50 rounded-3xl overflow-hidden">
                                 <div className="overflow-x-auto custom-scrollbar">
                                     <table className="w-full text-left text-sm whitespace-nowrap">
@@ -418,7 +460,16 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
             </div>
 
             {/* Fab for Add Payment */}
-            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20">
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20 flex gap-4">
+                {loanData?.amortization_type === 'none' && (
+                    <Button
+                        onClick={handleOpenAdvanceModal}
+                        variant="secondary"
+                        className="h-14 px-6 rounded-full font-bold shadow-lg flex gap-2 transition-all hover:-translate-y-1"
+                    >
+                        + Prestar Más (Avance)
+                    </Button>
+                )}
                 <Button
                     onClick={handleOpenPaymentModal}
                     className="h-14 px-8 rounded-full bg-brand-blue hover:bg-brand-blue/90 text-white font-bold shadow-lg shadow-brand-blue/20 flex gap-2 transition-all hover:-translate-y-1"
@@ -434,18 +485,22 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowPaymentModal(false)}></div>
                     <form onSubmit={handleRegisterPayment} className="bg-card w-full sm:w-[500px] h-[90vh] sm:h-auto sm:max-h-[85vh] rounded-t-[32px] sm:rounded-[36px] p-6 sm:p-8 relative z-10 flex flex-col animate-in slide-in-from-bottom-5 border border-border/20">
                         <div className="w-16 h-1.5 bg-muted rounded-full mx-auto mb-6 sm:hidden"></div>
-                        <h2 className="text-2xl font-bold text-foreground mb-1 shrink-0">Registrar Pago</h2>
+                        <h2 className="text-2xl font-bold text-foreground mb-1 shrink-0">
+                            {isAdvanceMode ? "Prestar Más (Avance)" : "Registrar Pago"}
+                        </h2>
 
-                        {nextExpected && (
+                        {!isAdvanceMode && nextExpected && (
                             <p className="text-sm font-medium text-muted-foreground mb-6">
                                 Cuota Esperada (Mes {nextExpected.month}): <strong className="text-foreground">{formatCurrency(nextExpected.installment, currency)}</strong>
                             </p>
                         )}
-                        {!nextExpected && <div className="mb-6"></div>}
+                        {(!nextExpected || isAdvanceMode) && <div className="mb-6"></div>}
 
                         <div className="flex-1 overflow-y-auto space-y-5 custom-scrollbar pb-6 pr-2">
                             <div>
-                                <label className="block text-sm font-bold text-foreground mb-2 ml-2">Total Efectivamente Recibido</label>
+                                <label className="block text-sm font-bold text-foreground mb-2 ml-2">
+                                    {isAdvanceMode ? "Monto Prestado Adicionalmente" : "Total Efectivamente Recibido"}
+                                </label>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -456,9 +511,15 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                                     className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-brand-blue/20 transition-all text-xl"
                                     disabled={saving}
                                 />
-                                <p className="text-[11px] text-muted-foreground ml-2 mt-1.5 leading-tight">
-                                    Introduce cuánto recibiste. El sistema distribuirá automáticamente a intereses, capital y abonos extras o re-financiará el saldo según corresponda.
-                                </p>
+                                {!isAdvanceMode ? (
+                                    <p className="text-[11px] text-muted-foreground ml-2 mt-1.5 leading-tight">
+                                        Introduce cuánto recibiste. El sistema distribuirá automáticamente a intereses, capital y abonos extras o re-financiará el saldo según corresponda.
+                                    </p>
+                                ) : (
+                                    <p className="text-[11px] text-muted-foreground ml-2 mt-1.5 leading-tight">
+                                        Registrar un avance sumará directamente al saldo del préstamo que te deben.
+                                    </p>
+                                )}
                             </div>
 
                             <div>
@@ -473,65 +534,69 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                                 />
                             </div>
 
-                            <div className="bg-muted/30 border border-border/50 rounded-2xl p-4 space-y-4">
-                                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">Distribución Automática</h4>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-orange-500 mb-1.5 ml-1">Interés Cubierto</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            required
-                                            value={payInterest}
-                                            onChange={e => setPayInterest(e.target.value)}
-                                            className="w-full h-11 bg-orange-500/10 border border-transparent rounded-xl px-4 text-orange-500 font-bold outline-none focus:border-orange-500/50 transition-all text-sm"
-                                            disabled={saving}
-                                        />
+                            {!isAdvanceMode && (
+                                <>
+                                    <div className="bg-muted/30 border border-border/50 rounded-2xl p-4 space-y-4">
+                                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">Distribución Automática</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-orange-500 mb-1.5 ml-1">Interés Cubierto</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    required
+                                                    value={payInterest}
+                                                    onChange={e => setPayInterest(e.target.value)}
+                                                    className="w-full h-11 bg-orange-500/10 border border-transparent rounded-xl px-4 text-orange-500 font-bold outline-none focus:border-orange-500/50 transition-all text-sm"
+                                                    disabled={saving}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-blue-500 mb-1.5 ml-1">Capital Abonado</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    required
+                                                    value={payPrincipal}
+                                                    onChange={e => setPayPrincipal(e.target.value)}
+                                                    className="w-full h-11 bg-blue-500/10 border border-transparent rounded-xl px-4 text-blue-500 font-bold outline-none focus:border-blue-500/50 transition-all text-sm"
+                                                    disabled={saving}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-blue-500 mb-1.5 ml-1">Capital Abonado</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            required
-                                            value={payPrincipal}
-                                            onChange={e => setPayPrincipal(e.target.value)}
-                                            className="w-full h-11 bg-blue-500/10 border border-transparent rounded-xl px-4 text-blue-500 font-bold outline-none focus:border-blue-500/50 transition-all text-sm"
-                                            disabled={saving}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
 
-                            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-5 space-y-4">
-                                <h3 className="font-bold text-emerald-600 dark:text-emerald-400 text-sm mb-2">¿Hubo Abono Extra a Capital?</h3>
-                                <div>
-                                    <label className="block text-xs font-bold text-emerald-600 dark:text-emerald-500 mb-1.5 ml-1">Monto Extra</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={payExtra}
-                                        onChange={e => setPayExtra(e.target.value)}
-                                        placeholder="0.00"
-                                        className="w-full h-12 bg-card border border-emerald-500/30 rounded-xl px-4 text-emerald-600 dark:text-emerald-400 font-bold outline-none focus:border-emerald-500 transition-all text-sm"
-                                        disabled={saving}
-                                    />
-                                </div>
-                                {Number(payExtra) > 0 && (
-                                    <div className="animate-in fade-in slide-in-from-top-2">
-                                        <label className="block text-xs font-bold text-emerald-600 dark:text-emerald-500 mb-1.5 ml-1">Acción del Abono Extra</label>
-                                        <select
-                                            value={extraAction}
-                                            onChange={e => setExtraAction(e.target.value as any)}
-                                            className="w-full h-12 bg-card border border-emerald-500/30 rounded-xl px-4 text-emerald-600 dark:text-emerald-400 font-bold outline-none focus:border-emerald-500 transition-all text-sm appearance-none"
-                                            disabled={saving}
-                                        >
-                                            <option value="reduce_term">Reducir Plazo (Conservar Cuota)</option>
-                                            <option value="reduce_installment">Reducir Cuota (Conservar Plazo)</option>
-                                        </select>
+                                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-5 space-y-4">
+                                        <h3 className="font-bold text-emerald-600 dark:text-emerald-400 text-sm mb-2">¿Hubo Abono Extra a Capital?</h3>
+                                        <div>
+                                            <label className="block text-xs font-bold text-emerald-600 dark:text-emerald-500 mb-1.5 ml-1">Monto Extra</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={payExtra}
+                                                onChange={e => setPayExtra(e.target.value)}
+                                                placeholder="0.00"
+                                                className="w-full h-12 bg-card border border-emerald-500/30 rounded-xl px-4 text-emerald-600 dark:text-emerald-400 font-bold outline-none focus:border-emerald-500 transition-all text-sm"
+                                                disabled={saving}
+                                            />
+                                        </div>
+                                        {Number(payExtra) > 0 && (
+                                            <div className="animate-in fade-in slide-in-from-top-2">
+                                                <label className="block text-xs font-bold text-emerald-600 dark:text-emerald-500 mb-1.5 ml-1">Acción del Abono Extra</label>
+                                                <select
+                                                    value={extraAction}
+                                                    onChange={e => setExtraAction(e.target.value as any)}
+                                                    className="w-full h-12 bg-card border border-emerald-500/30 rounded-xl px-4 text-emerald-600 dark:text-emerald-400 font-bold outline-none focus:border-emerald-500 transition-all text-sm appearance-none"
+                                                    disabled={saving}
+                                                >
+                                                    <option value="reduce_term">Reducir Plazo (Conservar Cuota)</option>
+                                                    <option value="reduce_installment">Reducir Cuota (Conservar Plazo)</option>
+                                                </select>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
+                                </>
+                            )}
                         </div>
 
                         <div className="pt-6 border-t border-border/50 flex gap-3 shrink-0 mt-4">

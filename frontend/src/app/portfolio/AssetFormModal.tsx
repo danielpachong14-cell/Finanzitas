@@ -11,7 +11,7 @@ interface AssetFormModalProps {
     institutions: Institution[];
     activeTab: 'financial' | 'digital' | 'physical';
     onClose: () => void;
-    onSave: (payload: Partial<Asset>, instId: string, instName: string, loanPayload?: Partial<LoanOptions>) => Promise<void>;
+    onSave: (payload: Partial<Asset>, instId: string, instName: string, loanPayload?: Partial<LoanOptions>, cdtPayload?: Partial<any>) => Promise<void>;
     onDelete?: () => Promise<void>;
 }
 
@@ -37,13 +37,17 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
     const [newCreditPaid, setNewCreditPaid] = useState("");
 
     // Digital Asset State
-    const [newDigitalType, setNewDigitalType] = useState<'investment' | 'loan'>('investment');
+    const [newDigitalType, setNewDigitalType] = useState<'investment' | 'loan' | 'cdt'>('investment');
     const [loanDebtor, setLoanDebtor] = useState("");
     const [loanTerm, setLoanTerm] = useState("12");
     const [loanGrace, setLoanGrace] = useState("0");
-    const [loanAmortization, setLoanAmortization] = useState<'french' | 'german'>('french');
+    const [loanAmortization, setLoanAmortization] = useState<'french' | 'german' | 'none'>('french');
     const [loanHasPayments, setLoanHasPayments] = useState(false);
     const [loadingLoanDetails, setLoadingLoanDetails] = useState(false);
+
+    // CDT State
+    const [cdtTermType, setCdtTermType] = useState<'months' | 'days'>('months');
+    const [cdtTermValue, setCdtTermValue] = useState("12");
 
     useEffect(() => {
         if (isOpen) {
@@ -81,6 +85,21 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                         console.error("Error loading loan", err);
                         setLoadingLoanDetails(false);
                     });
+                } else if (editingAsset.type === 'digital' && (editingAsset.digital_type === 'cdt' || (editingAsset.digital_type === 'investment' && editingAsset.cdt_details))) {
+                    setNewDigitalType('cdt');
+                    setNewOpeningDate(editingAsset.opening_date || new Date().toISOString().split('T')[0]);
+                    const details = editingAsset.cdt_details;
+                    if (details) {
+                        if (details.term_days) {
+                            setCdtTermType('days');
+                            setCdtTermValue(details.term_days.toString());
+                        } else if (details.term_months) {
+                            setCdtTermType('months');
+                            setCdtTermValue(details.term_months.toString());
+                        }
+                    }
+                } else if (editingAsset.type === 'digital' && editingAsset.digital_type === 'investment') {
+                    setNewDigitalType('investment');
                 }
             } else {
                 setNewName("");
@@ -102,6 +121,9 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                 setLoanTerm("12");
                 setLoanGrace("0");
                 setLoanAmortization('french');
+                setLoanAmortization('french');
+                setCdtTermType('months');
+                setCdtTermValue("12");
             }
         }
     }, [isOpen, editingAsset, activeTab]);
@@ -121,7 +143,7 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                 current_value: parseFloat(newVal) || 0,
                 interest_rate_nominal: parseFloat(newRate) || 0,
                 is_payment_account: newIsPaymentAccount,
-                opening_date: newType === 'financial' && newOpeningDate && !editingAsset ? newOpeningDate : undefined,
+                opening_date: (newType === 'financial' || (newType === 'digital' && newDigitalType === 'cdt')) && newOpeningDate && !editingAsset ? newOpeningDate : undefined,
             };
 
             if (newType === 'physical') {
@@ -150,7 +172,16 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                 };
             }
 
-            await onSave(payload, newInstitutionId, newInstName, loanPayload);
+            let cdtPayload: any | undefined = undefined;
+            if (newType === 'digital' && newDigitalType === 'cdt') {
+                cdtPayload = {
+                    principal_amount: parseFloat(newVal) || 0,
+                    term_months: cdtTermType === 'months' ? parseInt(cdtTermValue) || null : null,
+                    term_days: cdtTermType === 'days' ? parseInt(cdtTermValue) || null : null,
+                };
+            }
+
+            await onSave(payload, newInstitutionId, newInstName, loanPayload, cdtPayload);
         } finally {
             setSaving(false);
         }
@@ -186,7 +217,7 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div className={newType === 'financial' && !editingAsset ? 'col-span-1' : 'col-span-2'}>
+                        <div className={((newType === 'financial' || (newType === 'digital' && newDigitalType === 'cdt')) && !editingAsset) ? 'col-span-1' : 'col-span-2'}>
                             <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Valor Actual / Balance Inicial</label>
                             <input
                                 type="number"
@@ -199,7 +230,7 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                                 disabled={saving}
                             />
                         </div>
-                        {newType === 'financial' && !editingAsset && (
+                        {((newType === 'financial' || (newType === 'digital' && newDigitalType === 'cdt')) && !editingAsset) && (
                             <div className="col-span-1">
                                 <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Fecha de Apertura</label>
                                 <input
@@ -291,9 +322,49 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                                 className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-base appearance-none"
                                 disabled={saving}
                             >
-                                <option value="investment">Inversión (Cripto, Acciones, ETF)</option>
+                                <option value="investment">Inversión (Crypto, Acciones, ETF)</option>
+                                <option value="cdt">Certificado de Depósito a Término (CDT)</option>
                                 <option value="loan">Préstamo Otorgado (Personal / Empresarial)</option>
                             </select>
+                        </div>
+                    )}
+
+                    {newType === 'digital' && newDigitalType === 'cdt' && (
+                        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 space-y-4 animate-in fade-in slide-in-from-top-2">
+                            <h3 className="font-bold text-primary text-sm flex items-center mb-1">
+                                Detalles del CDT
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/20">
+                                <div>
+                                    <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Plazo expresado en:</label>
+                                    <select
+                                        value={cdtTermType}
+                                        onChange={e => setCdtTermType(e.target.value as any)}
+                                        className="w-full h-11 bg-card border border-border/50 rounded-xl px-3 text-foreground font-bold outline-none focus:border-primary/50 transition-all text-sm appearance-none"
+                                        disabled={saving}
+                                    >
+                                        <option value="months">Meses</option>
+                                        <option value="days">Días</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Nº {cdtTermType === 'months' ? 'Meses' : 'Días'}</label>
+                                    <input
+                                        type="number"
+                                        required={newDigitalType === 'cdt'}
+                                        min="1"
+                                        value={cdtTermValue}
+                                        onChange={e => setCdtTermValue(e.target.value)}
+                                        className="w-full h-11 bg-card border border-border/50 rounded-xl px-3 text-foreground font-bold outline-none focus:border-primary/50 transition-all text-sm"
+                                        disabled={saving}
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-[11px] text-muted-foreground/80 leading-tight">
+                                        Asegúrate de colocar tu <strong>Rendimiento (EA %)</strong> arriba para calcular correctamente lo ganado al día de hoy.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -331,12 +402,12 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className={`grid grid-cols-2 gap-4 ${loanAmortization === 'none' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                                         <div>
                                             <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Plazo (Meses)</label>
                                             <input
                                                 type="number"
-                                                required={newType === 'digital' && newDigitalType === 'loan'}
+                                                required={newType === 'digital' && newDigitalType === 'loan' && loanAmortization !== 'none'}
                                                 min="1"
                                                 value={loanTerm}
                                                 onChange={e => setLoanTerm(e.target.value)}
@@ -367,6 +438,7 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                                         >
                                             <option value="french">Cuota Fija (Francesa)</option>
                                             <option value="german">Abono a Capital Fijo (Alemana)</option>
+                                            <option value="none">Sin plan (Préstamo Abierto)</option>
                                         </select>
                                     </div>
 

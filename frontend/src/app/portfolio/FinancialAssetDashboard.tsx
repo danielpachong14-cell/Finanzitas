@@ -6,6 +6,7 @@ import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, RefreshCcw, Landmark, Activity, Plus, Trash2, Pencil, ArrowRightLeft } from "lucide-react";
 import { useUserOptions } from "@/core/context/UserContext";
 import { Button } from "@/components/ui/button";
+import { eaToDailyRate } from "@/core/finance/interestCalculator";
 
 interface Props {
     asset: Asset;
@@ -59,7 +60,8 @@ export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, on
 
         let balance = 0;
         let lastDate = new Date(sorted[0].date);
-        const dailyRate = Math.pow(1 + (asset.interest_rate_nominal / 100), 1 / 365) - 1;
+        // Tasa diaria equivalente derivada de la EA usando fórmula estándar
+        const dailyRate = eaToDailyRate(asset.interest_rate_nominal);
 
         for (const mov of sorted) {
             const movDate = new Date(mov.date);
