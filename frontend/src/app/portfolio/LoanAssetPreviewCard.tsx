@@ -36,9 +36,9 @@ export default function LoanAssetPreviewCard({ asset, currency, hideBalances, on
         return () => { mounted = false; };
     }, [asset.id]);
 
-    const principal = loanData?.principal_amount || 0;
-    const paidPrincipal = payments.reduce((sum, p) => sum + p.principal_amount + (p.extra_principal_amount || 0), 0);
-    const paidInterest = payments.reduce((sum, p) => sum + p.interest_amount, 0);
+    const principal = Number(loanData?.principal_amount || 0);
+    const paidPrincipal = payments.reduce((sum, p) => sum + Number(p.principal_amount) + (Number(p.extra_principal_amount) || 0), 0);
+    const paidInterest = payments.reduce((sum, p) => sum + Number(p.interest_amount), 0);
     const progressPerc = principal > 0 ? Math.min((paidPrincipal / principal) * 100, 100) : 0;
 
     return (
@@ -91,7 +91,7 @@ export default function LoanAssetPreviewCard({ asset, currency, hideBalances, on
                     </div>
                     <div>
                         <p className="text-[10px] text-muted-foreground uppercase font-bold">Rendimientos (INT)</p>
-                        <p className="font-bold text-sm text-orange-500">+{formatPrivacyCurrency(paidInterest, asset.currency, hideBalances)}</p>
+                        <p className="font-bold text-sm text-emerald-500">+{formatPrivacyCurrency(paidInterest, asset.currency, hideBalances)}</p>
                     </div>
                 </div>
             )}

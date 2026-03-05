@@ -162,12 +162,12 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
         if (!loanData) return [];
 
         const schedule = [];
-        let currentPrincipal = loanData.principal_amount;
+        let currentPrincipal = Number(loanData.principal_amount);
 
         let monthlyRate = 0;
-        if (loanData.interest_rate_annual > 0) {
+        if (Number(loanData.interest_rate_annual) > 0) {
             // Tasa Efectiva Mensual derivada de EA usando fórmula centralizada
-            monthlyRate = eaToMonthlyRate(loanData.interest_rate_annual);
+            monthlyRate = eaToMonthlyRate(Number(loanData.interest_rate_annual));
         }
 
         let totalTerm = loanData.term_months;
@@ -177,13 +177,13 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
         // Original PMT (for French)
         let originalPmt = 0;
         if (monthlyRate > 0) {
-            originalPmt = (loanData.principal_amount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -amortizingTermOriginal));
+            originalPmt = (Number(loanData.principal_amount) * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -amortizingTermOriginal));
         } else {
-            originalPmt = loanData.principal_amount / amortizingTermOriginal;
+            originalPmt = Number(loanData.principal_amount) / amortizingTermOriginal;
         }
 
         // Original Fixed Principal (for German)
-        let originalFixedPrincipal = loanData.principal_amount / amortizingTermOriginal;
+        let originalFixedPrincipal = Number(loanData.principal_amount) / amortizingTermOriginal;
 
         let totalPaidValue = 0;
         let totalInterestPaid = 0;
@@ -200,13 +200,13 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                 graceElapsed++;
             }
 
-            currentPrincipal -= (p.principal_amount + (p.extra_principal_amount || 0));
-            totalPaidValue += p.payment_amount;
-            totalInterestPaid += p.interest_amount;
+            currentPrincipal -= (Number(p.principal_amount) + (Number(p.extra_principal_amount) || 0));
+            totalPaidValue += Number(p.payment_amount);
+            totalInterestPaid += Number(p.interest_amount);
 
             // Recalculate Future Installment ONLY if the user specifically chose to REDUCE INSTALLMENT and NOT term.
             // If they Reduce Term, the parameters stay exactly the same, they'll just pay the loan off much faster.
-            if (p.extra_principal_amount > 0 && p.extra_action === 'reduce_installment') {
+            if (Number(p.extra_principal_amount) > 0 && p.extra_action === 'reduce_installment') {
                 let remainingAmortizing = amortizingTermOriginal - Math.max(0, monthsElapsed - graceTotal);
                 if (remainingAmortizing > 0 && currentPrincipal > 0) {
                     if (monthlyRate > 0) {
@@ -328,7 +328,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
             <div className="flex-1 overflow-y-auto px-6 py-6 pb-24">
                 {loanData && (
                     <>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
                             <div className="bg-card border border-border/50 rounded-3xl p-5 flex flex-col justify-center relative overflow-hidden">
                                 <p className="text-sm font-bold text-muted-foreground mb-1">Saldo Pendiente</p>
                                 <h3 className="text-2xl font-black text-brand-blue truncate">
@@ -351,6 +351,13 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                                 <p className="text-sm font-bold text-muted-foreground mb-1">Total Pagado</p>
                                 <h3 className="text-xl font-bold text-emerald-500 truncate">
                                     {formatCurrency(totalPaidValue, currency)}
+                                </h3>
+                            </div>
+                            <div className="bg-card border border-emerald-500/30 rounded-3xl p-5 flex flex-col justify-center relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-0.5 bg-emerald-500"></div>
+                                <p className="text-sm font-bold text-muted-foreground mb-1">Rendimientos</p>
+                                <h3 className="text-xl font-black text-emerald-500 truncate">
+                                    +{formatCurrency(totalInterestPaid, currency)}
                                 </h3>
                             </div>
                         </div>
@@ -406,7 +413,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                                                     <td className="px-5 py-3 font-bold text-foreground">Mes {row.month}</td>
                                                     <td className="px-5 py-3 text-right font-medium text-foreground">{formatCurrency(row.installment, currency)}</td>
                                                     <td className="px-5 py-3 text-right font-medium text-blue-500">{formatCurrency(row.principal, currency)}</td>
-                                                    <td className="px-5 py-3 text-right font-medium text-orange-500">{formatCurrency(row.interest, currency)}</td>
+                                                    <td className="px-5 py-3 text-right font-medium text-emerald-500">{formatCurrency(row.interest, currency)}</td>
                                                     <td className="px-5 py-3 text-right font-bold text-foreground">{formatCurrency(row.balance, currency)}</td>
                                                 </tr>
                                             ))}
@@ -438,7 +445,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                                                 <p className="text-xs text-muted-foreground flex gap-2">
                                                     <span className="text-blue-500 font-medium">CAP: {formatCurrency(p.principal_amount, currency)}</span>
                                                     <span>•</span>
-                                                    <span className="text-orange-500 font-medium">INT: {formatCurrency(p.interest_amount, currency)}</span>
+                                                    <span className="text-emerald-500 font-medium">INT: {formatCurrency(p.interest_amount, currency)}</span>
                                                     {p.extra_principal_amount > 0 && (
                                                         <>
                                                             <span>•</span>
@@ -540,14 +547,14 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                                         <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">Distribución Automática</h4>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-xs font-bold text-orange-500 mb-1.5 ml-1">Interés Cubierto</label>
+                                                <label className="block text-xs font-bold text-emerald-500 mb-1.5 ml-1">Interés Cubierto</label>
                                                 <input
                                                     type="number"
                                                     step="0.01"
                                                     required
                                                     value={payInterest}
                                                     onChange={e => setPayInterest(e.target.value)}
-                                                    className="w-full h-11 bg-orange-500/10 border border-transparent rounded-xl px-4 text-orange-500 font-bold outline-none focus:border-orange-500/50 transition-all text-sm"
+                                                    className="w-full h-11 bg-emerald-500/10 border border-transparent rounded-xl px-4 text-emerald-500 font-bold outline-none focus:border-emerald-500/50 transition-all text-sm"
                                                     disabled={saving}
                                                 />
                                             </div>
