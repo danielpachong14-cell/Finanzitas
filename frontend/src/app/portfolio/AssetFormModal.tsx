@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Asset, Institution, LoanOptions, ApiClient } from "@/core/api/ApiClient";
+import { Asset, Institution, LoanOptions, ApiClient } from "@/core/api";
 import { Button } from "@/components/ui/button";
 import { Info, Loader2 } from "lucide-react";
+import { CdtFormFields } from "./CdtFormFields";
+import { LoanFormFields } from "./LoanFormFields";
+import { PhysicalFormFields, PhysicalAssetType } from "./PhysicalFormFields";
 
 interface AssetFormModalProps {
     isOpen: boolean;
@@ -31,7 +34,7 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
     const [newIsPaymentAccount, setNewIsPaymentAccount] = useState(false);
 
     // Physical Asset State
-    const [newPhysicalType, setNewPhysicalType] = useState<'real_estate' | 'vehicle' | 'business' | 'tech' | 'jewelry' | 'other'>('other');
+    const [newPhysicalType, setNewPhysicalType] = useState<PhysicalAssetType>('other');
     const [newHasCredit, setNewHasCredit] = useState(false);
     const [newCreditAmount, setNewCreditAmount] = useState("");
     const [newCreditPaid, setNewCreditPaid] = useState("");
@@ -330,191 +333,45 @@ export function AssetFormModal({ isOpen, editingAsset, institutions, activeTab, 
                     )}
 
                     {newType === 'digital' && newDigitalType === 'cdt' && (
-                        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 space-y-4 animate-in fade-in slide-in-from-top-2">
-                            <h3 className="font-bold text-primary text-sm flex items-center mb-1">
-                                Detalles del CDT
-                            </h3>
-                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/20">
-                                <div>
-                                    <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Plazo expresado en:</label>
-                                    <select
-                                        value={cdtTermType}
-                                        onChange={e => setCdtTermType(e.target.value as any)}
-                                        className="w-full h-11 bg-card border border-border/50 rounded-xl px-3 text-foreground font-bold outline-none focus:border-primary/50 transition-all text-sm appearance-none"
-                                        disabled={saving}
-                                    >
-                                        <option value="months">Meses</option>
-                                        <option value="days">Días</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Nº {cdtTermType === 'months' ? 'Meses' : 'Días'}</label>
-                                    <input
-                                        type="number"
-                                        required={newDigitalType === 'cdt'}
-                                        min="1"
-                                        value={cdtTermValue}
-                                        onChange={e => setCdtTermValue(e.target.value)}
-                                        className="w-full h-11 bg-card border border-border/50 rounded-xl px-3 text-foreground font-bold outline-none focus:border-primary/50 transition-all text-sm"
-                                        disabled={saving}
-                                    />
-                                </div>
-                                <div className="col-span-2">
-                                    <p className="text-[11px] text-muted-foreground/80 leading-tight">
-                                        Asegúrate de colocar tu <strong>Rendimiento (EA %)</strong> arriba para calcular correctamente lo ganado al día de hoy.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                        <CdtFormFields
+                            cdtTermType={cdtTermType}
+                            setCdtTermType={setCdtTermType}
+                            cdtTermValue={cdtTermValue}
+                            setCdtTermValue={setCdtTermValue}
+                            saving={saving}
+                            required={newDigitalType === 'cdt'}
+                        />
                     )}
 
                     {newType === 'digital' && newDigitalType === 'loan' && (
-                        <div className="bg-brand-blue/10 border border-brand-blue/30 rounded-2xl p-5 space-y-5 animate-in fade-in slide-in-from-top-2">
-                            <h3 className="font-bold text-brand-blue text-sm mb-2 flex items-center">
-                                Detalles del Préstamo Otorgado
-                            </h3>
-
-                            {loadingLoanDetails ? (
-                                <div className="flex justify-center items-center py-6 text-brand-blue/70">
-                                    <Loader2 className="animate-spin w-6 h-6 mr-2" /> Cargando detalles...
-                                </div>
-                            ) : (
-                                <>
-                                    {loanHasPayments && (
-                                        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-500 text-xs font-bold p-3 rounded-xl flex items-start gap-2">
-                                            <Info size={16} className="shrink-0 mt-0.5" />
-                                            <span>
-                                                Este préstamo ya tiene pagos registrados, por lo que sus plazos, tasas y meses de gracia están <strong>bloqueados</strong>.
-                                            </span>
-                                        </div>
-                                    )}
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Deudor / Entidad receptora</label>
-                                        <input
-                                            type="text"
-                                            required={newType === 'digital' && newDigitalType === 'loan'}
-                                            value={loanDebtor}
-                                            onChange={e => setLoanDebtor(e.target.value)}
-                                            placeholder="Nombre de la persona o empresa"
-                                            className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
-                                            disabled={saving || loanHasPayments}
-                                        />
-                                    </div>
-
-                                    <div className={`grid grid-cols-2 gap-4 ${loanAmortization === 'none' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                                        <div>
-                                            <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Plazo (Meses)</label>
-                                            <input
-                                                type="number"
-                                                required={newType === 'digital' && newDigitalType === 'loan' && loanAmortization !== 'none'}
-                                                min="1"
-                                                value={loanTerm}
-                                                onChange={e => setLoanTerm(e.target.value)}
-                                                className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
-                                                disabled={saving || loanHasPayments}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Meses de Gracia</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={loanGrace}
-                                                onChange={e => setLoanGrace(e.target.value)}
-                                                className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm"
-                                                disabled={saving || loanHasPayments}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Sistema de Amortización</label>
-                                        <select
-                                            value={loanAmortization}
-                                            onChange={e => setLoanAmortization(e.target.value as any)}
-                                            className="w-full h-12 bg-card border border-border/50 rounded-xl px-4 text-foreground font-bold outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-brand-blue/30 transition-all text-sm appearance-none"
-                                            disabled={saving || loanHasPayments}
-                                        >
-                                            <option value="french">Cuota Fija (Francesa)</option>
-                                            <option value="german">Abono a Capital Fijo (Alemana)</option>
-                                            <option value="none">Sin plan (Préstamo Abierto)</option>
-                                        </select>
-                                    </div>
-
-                                    <p className="text-[11px] text-muted-foreground/80 leading-tight">
-                                        Nota: El <strong className="text-muted-foreground">Monto</strong> prestado corresponde al "Valor Actual" y la <strong className="text-muted-foreground">Tasa</strong> equivale al "Rendimiento" que pusiste arriba.
-                                    </p>
-                                </>
-                            )}
-                        </div>
+                        <LoanFormFields
+                            loadingDetails={loadingLoanDetails}
+                            hasPayments={loanHasPayments}
+                            saving={saving}
+                            required={newType === 'digital' && newDigitalType === 'loan'}
+                            debtor={loanDebtor}
+                            setDebtor={setLoanDebtor}
+                            term={loanTerm}
+                            setTerm={setLoanTerm}
+                            grace={loanGrace}
+                            setGrace={setLoanGrace}
+                            amortization={loanAmortization}
+                            setAmortization={setLoanAmortization}
+                        />
                     )}
 
                     {newType === 'physical' && (
-                        <>
-                            <div>
-                                <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Tipología de Bien Físico</label>
-                                <select
-                                    value={newPhysicalType}
-                                    onChange={e => setNewPhysicalType(e.target.value as any)}
-                                    className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-base appearance-none"
-                                    disabled={saving}
-                                >
-                                    <option value="real_estate">Inmueble / Bien Raíz</option>
-                                    <option value="vehicle">Vehículo</option>
-                                    <option value="business">Empresa / Negocio</option>
-                                    <option value="tech">Tecnología / Equipos</option>
-                                    <option value="jewelry">Joyería / Arte</option>
-                                    <option value="other">Otro Bien</option>
-                                </select>
-                            </div>
-
-                            <div className="bg-muted/50 border border-border/50 rounded-2xl p-5 space-y-5">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-bold text-foreground text-sm">¿Financiado / Apalancado?</p>
-                                        <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Control de deudas sobre este activo</p>
-                                    </div>
-                                    <div className="relative cursor-pointer" onClick={() => !saving && setNewHasCredit(!newHasCredit)}>
-                                        <div className={`block w-14 h-8 rounded-full transition-colors ${newHasCredit ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
-                                        <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${newHasCredit ? 'translate-x-6' : ''}`}></div>
-                                    </div>
-                                </div>
-
-                                {newHasCredit && (
-                                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/50">
-                                        <div>
-                                            <label className="block text-xs font-bold text-muted-foreground mb-1.5 ml-1">Monto Deuda Inicial</label>
-                                            <input
-                                                type="number"
-                                                required={newHasCredit}
-                                                min="0"
-                                                step="0.01"
-                                                value={newCreditAmount}
-                                                onChange={e => setNewCreditAmount(e.target.value)}
-                                                placeholder="0.00"
-                                                className="w-full h-11 bg-card border border-border/50 rounded-xl px-3 text-foreground font-bold outline-none focus:border-primary/50 transition-all text-sm"
-                                                disabled={saving}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-emerald-500 mb-1.5 ml-1">Total Pagado Aportado</label>
-                                            <input
-                                                type="number"
-                                                required={newHasCredit}
-                                                min="0"
-                                                step="0.01"
-                                                value={newCreditPaid}
-                                                onChange={e => setNewCreditPaid(e.target.value)}
-                                                placeholder="0.00"
-                                                className="w-full h-11 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 text-emerald-600 dark:text-emerald-400 font-bold outline-none focus:border-emerald-500 transition-all text-sm"
-                                                disabled={saving}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </>
+                        <PhysicalFormFields
+                            physicalType={newPhysicalType}
+                            setPhysicalType={setNewPhysicalType}
+                            hasCredit={newHasCredit}
+                            setHasCredit={setNewHasCredit}
+                            creditAmount={newCreditAmount}
+                            setCreditAmount={setNewCreditAmount}
+                            creditPaid={newCreditPaid}
+                            setCreditPaid={setNewCreditPaid}
+                            saving={saving}
+                        />
                     )}
 
                     <div>

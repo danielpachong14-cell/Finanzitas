@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Asset, ApiClient, LoanOptions, LoanPayment } from '@/core/api/ApiClient';
+import { Asset, ApiClient, LoanOptions, LoanPayment } from '@/core/api';
 
 interface Props {
     asset: Asset;

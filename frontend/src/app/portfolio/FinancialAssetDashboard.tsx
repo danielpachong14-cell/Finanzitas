@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ApiClient, Asset, AssetMovement } from "@/core/api/ApiClient";
+import { ApiClient, Asset, AssetMovement } from "@/core/api";
 import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, RefreshCcw, Landmark, Activity, Plus, Trash2, Pencil, ArrowRightLeft } from "lucide-react";
 import { useUserOptions } from "@/core/context/UserContext";

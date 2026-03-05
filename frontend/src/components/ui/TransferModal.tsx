@@ -5,8 +5,7 @@ import { X, ArrowRightLeft, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiClient } from "@/core/api/ApiClient";
-import { Asset } from "@/core/api/ApiClient";
+import { ApiClient, Asset } from "@/core/api";
 import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
 import { useUserOptions } from "@/core/context/UserContext";
 

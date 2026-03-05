@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ApiClient } from '@/core/api/ApiClient';
+import { ApiClient } from '@/core/api';
 import { supabase } from '@/core/api/supabase';
 import { useTheme } from 'next-themes';
 

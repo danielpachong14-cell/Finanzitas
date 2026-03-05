@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Asset } from '@/core/api/ApiClient';
-import { calculateNetYield, monthsToDays } from '@/core/finance/interestCalculator';
+import React from 'react';
+import { Asset } from '@/core/api';
+import { useCdtYield } from '@/core/hooks/useCdtYield';
 
 interface Props {
     asset: Asset;
@@ -11,38 +11,8 @@ interface Props {
 }
 
 export function CDTAssetPreviewCard({ asset, currency, hideBalances, onClick, formatPrivacyCurrency }: Props) {
-    const [daysPassed, setDaysPassed] = useState(0);
-    const [totalDays, setTotalDays] = useState(0);
-    const [netYield, setNetYield] = useState(0);
-
+    const { daysPassed, totalDays, currentNetYield: netYield } = useCdtYield(asset);
     const cdtDetails = asset.cdt_details;
-    const principal = Number(cdtDetails?.principal_amount || asset.current_value || 0);
-    const openingDateStr = asset.opening_date || new Date().toISOString().split('T')[0];
-    const rateEA = asset.interest_rate_nominal || 0;
-
-    useEffect(() => {
-        if (!cdtDetails) return;
-
-        const openingDate = new Date(`${openingDateStr}T00:00:00`);
-        const today = new Date();
-        const diffTime = today.getTime() - openingDate.getTime();
-        const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
-
-        let tDays = 0;
-        if (cdtDetails.term_days) {
-            tDays = cdtDetails.term_days;
-        } else if (cdtDetails.term_months) {
-            tDays = monthsToDays(cdtDetails.term_months);
-        }
-
-        setDaysPassed(diffDays);
-        setTotalDays(tDays);
-
-        // Cálculo de rendimientos netos (después de Retefuente)
-        const calc = calculateNetYield(principal, rateEA, diffDays);
-        setNetYield(calc.netYield);
-
-    }, [cdtDetails, openingDateStr, rateEA, principal]);
 
     const progressPerc = totalDays > 0 ? Math.min((daysPassed / totalDays) * 100, 100) : 0;
 

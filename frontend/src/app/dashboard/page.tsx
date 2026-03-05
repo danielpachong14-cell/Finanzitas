@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
-import { ApiClient, Balance, Transaction } from "@/core/api/ApiClient";
+import { ApiClient, Balance, Transaction } from "@/core/api";
 import { useTransactions, useBalance } from "@/core/hooks/useQueries";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowDownLeft, ArrowUpRight, Bell, Wallet } from "lucide-react";

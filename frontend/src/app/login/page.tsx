@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthService } from "@/core/auth/AuthService";
+import { handleApiError } from "@/core/errors/handleApiError";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,7 +105,7 @@ function LoginFormContent() {
         }
       }
     } catch (err) {
-      console.error("Auth action failed:", err);
+      handleApiError(err, "Ocurrió un error inesperado durante la autenticación.");
       setError("Ocurrió un error inesperado.");
     } finally {
       setLoading(false);

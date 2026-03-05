@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ApiClient } from '../api/ApiClient';
+import { ApiClient } from '../api';
 
 export const TRANSACTION_KEYS = {
     all: ['transactions'] as const,
@@ -18,7 +18,9 @@ export function useTransactions() {
             const data = await ApiClient.getTransactions();
             return data;
         },
-        staleTime: 1000 * 60 * 5, // Data is fresh for 5 minutes
+        staleTime: 1000 * 60 * 2, // 2 minutes
+        gcTime: 1000 * 60 * 30, // 30 minutes
+        refetchOnWindowFocus: true,
     });
 }
 
@@ -29,7 +31,9 @@ export function useBalance() {
             const data = await ApiClient.getBalance();
             return data;
         },
-        staleTime: 1000 * 60 * 5,
+        staleTime: 1000 * 60 * 2,
+        gcTime: 1000 * 60 * 30,
+        refetchOnWindowFocus: true,
     });
 }
 
@@ -41,6 +45,8 @@ export function useCategories() {
             return data;
         },
         staleTime: 1000 * 60 * 60, // Categories don't change very often
+        gcTime: 1000 * 60 * 60 * 24, // 24 hours
+        refetchOnWindowFocus: false,
     });
 }
 
@@ -51,7 +57,9 @@ export function useAssets() {
             const data = await ApiClient.getAssets();
             return data;
         },
-        staleTime: 1000 * 60 * 5,
+        staleTime: 1000 * 60 * 2,
+        gcTime: 1000 * 60 * 30,
+        refetchOnWindowFocus: true,
     });
 }
 
@@ -63,5 +71,7 @@ export function useInstitutions() {
             return data;
         },
         staleTime: 1000 * 60 * 60, // 1 hour for institutions (rarely change)
+        gcTime: 1000 * 60 * 60 * 24, // 24 hours
+        refetchOnWindowFocus: false,
     });
 }

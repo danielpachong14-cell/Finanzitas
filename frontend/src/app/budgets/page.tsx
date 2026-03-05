@@ -5,7 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Target, AlertCircle, Plus, X, ChevronLeft, ChevronRight, Edit2, Trash2, ArrowUpDown } from "lucide-react";
 import * as LucideIcons from "lucide-react";
-import { ApiClient, Category, Transaction } from "@/core/api/ApiClient";
+import { ApiClient, Category, Transaction } from "@/core/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

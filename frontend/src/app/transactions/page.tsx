@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatCurrency, formatPrivacyCurrency } from "@/lib/utils";
-import { ApiClient, Transaction } from "@/core/api/ApiClient";
+import { ApiClient, Transaction } from "@/core/api";
 import { useTransactions } from "@/core/hooks/useQueries";
 import { ArrowLeft, Download, Search, Filter, SlidersHorizontal, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { Input } from "@/components/ui/input";

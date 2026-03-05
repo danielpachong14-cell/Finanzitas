@@ -1,5 +1,5 @@
 import React from 'react';
-import { Asset } from '@/core/api/ApiClient';
+import { Asset } from '@/core/api';
 import { formatCurrency, formatPrivacyCurrency } from '@/lib/utils';
 import { useUserOptions } from '@/core/context/UserContext';
 

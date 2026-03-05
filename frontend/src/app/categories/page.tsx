@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { handleApiError } from "@/core/errors/handleApiError";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ApiClient, Category } from "@/core/api/ApiClient";
+import { ApiClient, Category } from "@/core/api";
 import { useCategories } from "@/core/hooks/useQueries";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -93,8 +94,7 @@ export default function CategoriesPage() {
       await invalidateData();
       closeModal();
     } catch (error) {
-      console.error(error);
-      alert("Error al guardar la categoría");
+      handleApiError(error, "Error al guardar la categoría");
     } finally {
       setSaving(false);
     }
@@ -109,8 +109,7 @@ export default function CategoriesPage() {
       await invalidateData();
       closeModal();
     } catch (error) {
-      console.error(error);
-      alert("Error al eliminar la categoría");
+      handleApiError(error, "Error al eliminar la categoría");
     } finally {
       setSaving(false);
     }

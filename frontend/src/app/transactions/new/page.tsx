@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ApiClient, Category, Asset } from "@/core/api/ApiClient";
+import { ApiClient, Category, Asset } from "@/core/api";
 import { useUserOptions } from "@/core/context/UserContext";
 import { ReceiptUploader, ParsedReceiptData } from "@/components/ui/ReceiptUploader";
 

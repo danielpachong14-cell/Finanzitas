@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Asset } from "@/core/api/ApiClient";
+import { Asset } from "@/core/api";
 import { X, Calendar, TrendingUp, Clock, AlertCircle, ShieldCheck } from "lucide-react";
-import { calculateNetYield, monthsToDays, COLOMBIAN_TAX } from "@/core/finance/interestCalculator";
+import { COLOMBIAN_TAX } from "@/core/finance/interestCalculator";
+import { useCdtYield } from "@/core/hooks/useCdtYield";
+import { formatCurrency } from "@/lib/utils";
 
 interface CDTAssetDashboardProps {
     asset: Asset;
@@ -14,73 +15,22 @@ interface CDTAssetDashboardProps {
 }
 
 export function CDTAssetDashboard({ asset, currency, onClose, onEdit }: CDTAssetDashboardProps) {
-    const [daysPassed, setDaysPassed] = useState(0);
-    const [totalDays, setTotalDays] = useState(0);
-    const [progressPct, setProgressPct] = useState(0);
-    const [maturityDateStr, setMaturityDateStr] = useState("");
-
-    // Rendimientos actuales (a hoy)
-    const [currentGrossYield, setCurrentGrossYield] = useState(0);
-    const [currentRetefuente, setCurrentRetefuente] = useState(0);
-    const [currentNetYield, setCurrentNetYield] = useState(0);
-
-    // Rendimientos proyectados (al vencimiento)
-    const [projectedGrossYield, setProjectedGrossYield] = useState(0);
-    const [projectedRetefuente, setProjectedRetefuente] = useState(0);
-    const [projectedNetYield, setProjectedNetYield] = useState(0);
-
     const cdtDetails = asset.cdt_details;
     const principal = Number(cdtDetails?.principal_amount || asset.current_value || 0);
-    const openingDateStr = asset.opening_date || new Date().toISOString().split('T')[0];
     const rateEA = asset.interest_rate_nominal || 0;
+    const openingDateStr = asset.opening_date || new Date().toISOString().split('T')[0];
 
-    useEffect(() => {
-        if (!cdtDetails) return;
-
-        const openingDate = new Date(`${openingDateStr}T00:00:00`);
-        const today = new Date();
-        const diffTime = today.getTime() - openingDate.getTime();
-        const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
-
-        let tDays = 0;
-        if (cdtDetails.term_days) {
-            tDays = cdtDetails.term_days;
-        } else if (cdtDetails.term_months) {
-            tDays = monthsToDays(cdtDetails.term_months);
-        }
-
-        setDaysPassed(diffDays);
-        setTotalDays(tDays);
-
-        const pct = tDays > 0 ? Math.min(100, (diffDays / tDays) * 100) : 0;
-        setProgressPct(pct);
-
-        // Rendimientos a hoy usando fórmula centralizada con Retefuente
-        const currentCalc = calculateNetYield(principal, rateEA, diffDays);
-        setCurrentGrossYield(currentCalc.grossYield);
-        setCurrentRetefuente(currentCalc.retefuente);
-        setCurrentNetYield(currentCalc.netYield);
-
-        // Proyección al vencimiento
-        const projectedCalc = calculateNetYield(principal, rateEA, tDays);
-        setProjectedGrossYield(projectedCalc.grossYield);
-        setProjectedRetefuente(projectedCalc.retefuente);
-        setProjectedNetYield(projectedCalc.netYield);
-
-        // Fecha de vencimiento
-        const mDate = new Date(openingDate.getTime() + tDays * 24 * 60 * 60 * 1000);
-        setMaturityDateStr(mDate.toISOString().split('T')[0]);
-
-    }, [asset, cdtDetails, openingDateStr, rateEA, principal]);
+    const {
+        daysPassed, totalDays, progressPct, maturityDateStr, daysRemaining, isMatured,
+        currentGrossYield, currentRetefuente, currentNetYield,
+        projectedGrossYield, projectedRetefuente, projectedNetYield,
+    } = useCdtYield(asset);
 
     const formatCurrencyValue = (val: number) => {
-        return new Intl.NumberFormat('es-CO', { style: 'currency', currency, minimumFractionDigits: 0 }).format(val);
+        return formatCurrency(val, currency);
     };
 
     if (!cdtDetails) return null;
-
-    const daysRemaining = Math.max(0, totalDays - daysPassed);
-    const isMatured = daysPassed >= totalDays;
 
     return (
         <div className="fixed inset-0 z-50 flex justify-end">

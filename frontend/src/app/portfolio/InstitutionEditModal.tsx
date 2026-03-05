@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Institution } from "@/core/api/ApiClient";
+import { Institution } from "@/core/api";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 

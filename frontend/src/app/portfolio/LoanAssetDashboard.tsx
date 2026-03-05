@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ApiClient, Asset, LoanOptions, LoanPayment } from "@/core/api/ApiClient";
+import { ApiClient, Asset, LoanOptions, LoanPayment } from "@/core/api";
 import { formatCurrency } from "@/lib/utils";
-import { ArrowLeft, HandCoins, Info, History, FileText, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, HandCoins, Info, History, FileText, ChevronRight, Pencil, Trash2, X, Calendar, Wallet } from "lucide-react";
+import { handleApiError } from "@/core/errors/handleApiError";
 import { Button } from "@/components/ui/button";
-import { eaToMonthlyRate } from "@/core/finance/interestCalculator";
+import { useLoanAmortization } from "@/core/hooks/useLoanAmortization";
 
 interface Props {
     asset: Asset;
@@ -49,7 +50,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                 setPayments(pays);
             }
         } catch (error) {
-            console.error("Error loading loan details", error);
+            handleApiError(error, "Error loading loan details");
         } finally {
             setLoading(false);
         }
@@ -106,8 +107,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
             await loadLoanDetails();
             onUpdate(); // tells portfolio to reload assets
         } catch (err) {
-            console.error(err);
-            alert("Error registrando pago");
+            handleApiError(err, "Error registrando pago");
         } finally {
             setSaving(false);
         }
@@ -121,8 +121,7 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
             onUpdate();
             onClose();
         } catch (error) {
-            console.error(error);
-            alert("Error al eliminar");
+            handleApiError(error, "Error al eliminar");
         } finally {
             setSaving(false);
         }
@@ -157,118 +156,8 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
         }
     };
 
-    // Calculate Amortization logic
-    const generateAmortizationSchedule = () => {
-        if (!loanData) return [];
-
-        const schedule = [];
-        let currentPrincipal = Number(loanData.principal_amount);
-
-        let monthlyRate = 0;
-        if (Number(loanData.interest_rate_annual) > 0) {
-            // Tasa Efectiva Mensual derivada de EA usando fórmula centralizada
-            monthlyRate = eaToMonthlyRate(Number(loanData.interest_rate_annual));
-        }
-
-        let totalTerm = loanData.term_months;
-        let graceTotal = loanData.grace_period_months;
-        let amortizingTermOriginal = Math.max(1, totalTerm - graceTotal);
-
-        // Original PMT (for French)
-        let originalPmt = 0;
-        if (monthlyRate > 0) {
-            originalPmt = (Number(loanData.principal_amount) * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -amortizingTermOriginal));
-        } else {
-            originalPmt = Number(loanData.principal_amount) / amortizingTermOriginal;
-        }
-
-        // Original Fixed Principal (for German)
-        let originalFixedPrincipal = Number(loanData.principal_amount) / amortizingTermOriginal;
-
-        let totalPaidValue = 0;
-        let totalInterestPaid = 0;
-
-        let monthsElapsed = 0;
-        let graceElapsed = 0;
-
-        let currentPmt = originalPmt;
-        let currentFixedPrincipal = originalFixedPrincipal;
-
-        for (const p of payments) {
-            monthsElapsed++;
-            if (graceElapsed < graceTotal) {
-                graceElapsed++;
-            }
-
-            currentPrincipal -= (Number(p.principal_amount) + (Number(p.extra_principal_amount) || 0));
-            totalPaidValue += Number(p.payment_amount);
-            totalInterestPaid += Number(p.interest_amount);
-
-            // Recalculate Future Installment ONLY if the user specifically chose to REDUCE INSTALLMENT and NOT term.
-            // If they Reduce Term, the parameters stay exactly the same, they'll just pay the loan off much faster.
-            if (Number(p.extra_principal_amount) > 0 && p.extra_action === 'reduce_installment') {
-                let remainingAmortizing = amortizingTermOriginal - Math.max(0, monthsElapsed - graceTotal);
-                if (remainingAmortizing > 0 && currentPrincipal > 0) {
-                    if (monthlyRate > 0) {
-                        currentPmt = (currentPrincipal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainingAmortizing));
-                    } else {
-                        currentPmt = currentPrincipal / remainingAmortizing;
-                    }
-                    currentFixedPrincipal = currentPrincipal / remainingAmortizing;
-                }
-            }
-        }
-
-        const snapshotPrincipalPostPayments = Math.max(0, currentPrincipal);
-
-        // Generate Future Schedule
-        let month = monthsElapsed + 1;
-        let graceRemaining = graceTotal - graceElapsed;
-        let iterPrincipal = snapshotPrincipalPostPayments;
-
-        while (iterPrincipal > 0.01) {
-            let interest = iterPrincipal * monthlyRate;
-            let principal = 0;
-            let installment = 0;
-
-            if (graceRemaining > 0) {
-                installment = interest;
-                principal = 0;
-                graceRemaining--;
-            } else {
-                if (loanData.amortization_type === 'french') {
-                    installment = currentPmt;
-                    principal = installment - interest;
-                } else {
-                    principal = currentFixedPrincipal;
-                    installment = principal + interest;
-                }
-
-                // Last month correction or if payment easily covers remaining principal
-                if (principal > iterPrincipal) {
-                    principal = iterPrincipal;
-                    installment = principal + interest;
-                }
-            }
-
-            iterPrincipal -= principal;
-
-            schedule.push({
-                month,
-                installment,
-                principal,
-                interest,
-                balance: Math.max(0, iterPrincipal)
-            });
-
-            month++;
-            if (month > 480) break; // Safety limit (40 years max)
-        }
-
-        return { schedule, currentPrincipal: snapshotPrincipalPostPayments, totalPaidValue, totalInterestPaid, nextExpected: schedule.length > 0 ? schedule[0] : null };
-    };
-
-    const { schedule, currentPrincipal, totalPaidValue, totalInterestPaid, nextExpected } = generateAmortizationSchedule() as any || { schedule: [], currentPrincipal: 0 };
+    // Amortization calculation via hook
+    const { schedule, currentPrincipal, totalPaidValue, totalInterestPaid, nextExpected } = useLoanAmortization(loanData, payments);
 
     const handleOpenPaymentModal = () => {
         setPayDate(new Date().toISOString().split('T')[0]);

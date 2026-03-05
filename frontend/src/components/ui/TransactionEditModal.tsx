@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiClient, Transaction, Category, Asset } from "@/core/api/ApiClient";
+import { ApiClient, Transaction, Category, Asset } from "@/core/api";
 import { ReceiptUploader, ParsedReceiptData } from "@/components/ui/ReceiptUploader";
 import { Trash2, AlertTriangle, ExternalLink } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
