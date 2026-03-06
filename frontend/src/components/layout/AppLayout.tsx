@@ -4,6 +4,7 @@ import { ReactNode, useState } from "react";
 import { Home, PieChart, CreditCard, User, Target, Tags, ChevronLeft, ChevronRight, LogOut, Briefcase, Eye, EyeOff, Building2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUserOptions } from "@/core/context/UserContext";
+import { useDailyMarketSync } from "@/core/hooks/useDailyMarketSync";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -15,6 +16,9 @@ export function AppLayout({ children, hideNav = false }: AppLayoutProps) {
   const router = useRouter();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { hideBalances, toggleHideBalances } = useUserOptions();
+
+  // Activar sincronización en segundo plano de mercado FMP (Corre 1 vez al día)
+  useDailyMarketSync();
 
   const navItems = [
     { icon: Home, label: "Home", href: "/dashboard" },
