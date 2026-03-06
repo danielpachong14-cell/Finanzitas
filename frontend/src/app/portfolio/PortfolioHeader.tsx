@@ -196,7 +196,7 @@ export function PortfolioHeader({ assets, institutions, currency, hideBalances, 
                         className={`flex-1 flex items-center justify-center text-sm font-bold rounded-[12px] z-10 transition-colors duration-300 gap-2 ${activeTab === 'digital' ? 'text-background' : 'text-muted-foreground hover:text-foreground/80'}`}
                         onClick={() => setActiveTab('digital')}
                     >
-                        <LayoutGrid size={16} /> <span className="hidden sm:inline">Digitales</span>
+                        <LayoutGrid size={16} /> <span className="hidden sm:inline">Inversiones</span>
                     </button>
                     <button
                         className={`flex-1 flex items-center justify-center text-sm font-bold rounded-[12px] z-10 transition-colors duration-300 gap-2 ${activeTab === 'physical' ? 'text-background' : 'text-muted-foreground hover:text-foreground/80'}`}

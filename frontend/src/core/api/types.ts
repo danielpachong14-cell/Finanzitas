@@ -73,6 +73,19 @@ export interface Asset {
     updated_at?: string;
     loan_options?: LoanOptions;
     cdt_details?: CdtDetails;
+    ticker_symbol?: string | null;
+}
+
+export interface AssetTransaction {
+    id: string;
+    asset_id: string;
+    user_id: string;
+    type: 'buy' | 'sell';
+    quantity: number;
+    price_per_share: number;
+    currency: string;
+    date: string;
+    created_at?: string;
 }
 
 export interface AssetSnapshot {

@@ -16,6 +16,7 @@ export type {
     LoanOptions,
     LoanPayment,
     CdtDetails,
+    AssetTransaction,
 } from './types';
 
 // Re-exportar repositorios
@@ -57,6 +58,7 @@ import type {
     LoanOptions,
     LoanPayment,
     CdtDetails,
+    AssetTransaction,
 } from './types';
 
 export class ApiClient {
@@ -95,6 +97,9 @@ export class ApiClient {
     static getAssetMovements = AssetRepo.getMovements.bind(AssetRepo) as (assetId: string) => Promise<AssetMovement[]>;
     static createAssetMovement = AssetRepo.createMovement.bind(AssetRepo) as (assetId: string, type: 'deposit' | 'withdrawal' | 'adjustment', amount: number, date: string, description?: string) => Promise<AssetMovement>;
     static deleteAssetMovement = AssetRepo.deleteMovement.bind(AssetRepo) as (id: string) => Promise<void>;
+    static getAssetTransactions = AssetRepo.getTransactions.bind(AssetRepo) as (assetId: string) => Promise<AssetTransaction[]>;
+    static createAssetTransaction = AssetRepo.createTransaction.bind(AssetRepo) as (assetId: string, type: 'buy' | 'sell', quantity: number, pricePerShare: number, currency: string, date: string) => Promise<AssetTransaction>;
+    static deleteAssetTransaction = AssetRepo.deleteTransaction.bind(AssetRepo) as (id: string) => Promise<void>;
 
     // --- Loans ---
     static getLoanData = LoanRepo.getData.bind(LoanRepo) as (assetId: string) => Promise<LoanOptions | null>;

@@ -1,6 +1,6 @@
 import { supabase } from '../supabase';
 import { getAuthUser, getAuthUserOrNull, toNumber } from '../helpers';
-import type { Asset, AssetSnapshot, AssetMovement } from '../types';
+import type { Asset, AssetSnapshot, AssetMovement, AssetTransaction } from '../types';
 
 // ============================================================
 // AssetRepo — Activos, snapshots y movimientos
@@ -148,6 +148,59 @@ export class AssetRepo {
     static async deleteMovement(id: string): Promise<void> {
         const { error } = await supabase
             .from('asset_movements')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
+
+    // --- Renta Variable Transactions ---
+
+    static async getTransactions(assetId: string): Promise<AssetTransaction[]> {
+        const { data, error } = await supabase
+            .from('asset_transactions')
+            .select('*')
+            .eq('asset_id', assetId)
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching asset transactions:', error);
+            return [];
+        }
+        return data as AssetTransaction[];
+    }
+
+    static async createTransaction(
+        assetId: string,
+        type: 'buy' | 'sell',
+        quantity: number,
+        pricePerShare: number,
+        currency: string,
+        date: string
+    ): Promise<AssetTransaction> {
+        const user = await getAuthUser();
+
+        const { data, error } = await supabase
+            .from('asset_transactions')
+            .insert({
+                user_id: user.id,
+                asset_id: assetId,
+                type,
+                quantity,
+                price_per_share: pricePerShare,
+                currency,
+                date
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as AssetTransaction;
+    }
+
+    static async deleteTransaction(id: string): Promise<void> {
+        const { error } = await supabase
+            .from('asset_transactions')
             .delete()
             .eq('id', id);
 

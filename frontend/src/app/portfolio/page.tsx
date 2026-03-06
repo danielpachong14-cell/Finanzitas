@@ -22,13 +22,22 @@ import { Suspense, lazy } from "react";
 const FinancialAssetDashboard = lazy(() => import('./FinancialAssetDashboard').then(mod => ({ default: mod.FinancialAssetDashboard })));
 const LoanAssetDashboard = lazy(() => import('./LoanAssetDashboard').then(mod => ({ default: mod.LoanAssetDashboard })));
 const CDTAssetDashboard = lazy(() => import('./CDTAssetDashboard').then(mod => ({ default: mod.CDTAssetDashboard })));
+const VariableIncomeAssetDashboard = lazy(() => import('./VariableIncomeAssetDashboard').then(mod => ({ default: mod.VariableIncomeAssetDashboard })));
 
 const InstitutionEditModal = dynamic(() => import('./InstitutionEditModal').then(mod => mod.InstitutionEditModal), {
     ssr: false,
 });
 
-const AssetFormModal = dynamic(() => import('./AssetFormModal').then(mod => mod.AssetFormModal), {
-    ssr: true, // AssetFormModal might benefit from hydration earlier, but SSR disabled is generally safer for client-only modals. Let's keep it default.
+const FinancialAssetFormModal = dynamic(() => import('./FinancialAssetFormModal').then(mod => mod.FinancialAssetFormModal), {
+    ssr: false,
+});
+
+const DigitalAssetFormModal = dynamic(() => import('./DigitalAssetFormModal').then(mod => mod.DigitalAssetFormModal), {
+    ssr: false,
+});
+
+const PhysicalAssetFormModal = dynamic(() => import('./PhysicalAssetFormModal').then(mod => mod.PhysicalAssetFormModal), {
+    ssr: false,
 });
 
 export default function PortfolioPage() {
@@ -47,7 +56,11 @@ export default function PortfolioPage() {
     const [activeTab, setActiveTab] = useState<'financial' | 'digital' | 'physical'>('financial');
 
     // Modal State
-    const [showAddModal, setShowAddModal] = useState(false);
+    const [showFinancialModal, setShowFinancialModal] = useState(false);
+    const [showDigitalModal, setShowDigitalModal] = useState(false);
+    const [showPhysicalModal, setShowPhysicalModal] = useState(false);
+
+    // El 'editingAsset' puede servir para cualquiera de los tres
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [dashboardAsset, setDashboardAsset] = useState<Asset | null>(null);
 
@@ -68,7 +81,9 @@ export default function PortfolioPage() {
 
     const openAddModal = () => {
         setEditingAsset(null);
-        setShowAddModal(true);
+        if (activeTab === 'financial') setShowFinancialModal(true);
+        if (activeTab === 'digital') setShowDigitalModal(true);
+        if (activeTab === 'physical') setShowPhysicalModal(true);
     };
 
     const openTransferModal = (sourceId: string = "") => {
@@ -78,7 +93,9 @@ export default function PortfolioPage() {
 
     const openEditModal = (asset: Asset) => {
         setEditingAsset(asset);
-        setShowAddModal(true);
+        if (asset.type === 'financial') setShowFinancialModal(true);
+        if (asset.type === 'digital') setShowDigitalModal(true);
+        if (asset.type === 'physical') setShowPhysicalModal(true);
     };
 
     const handleAssetClick = (asset: Asset) => {
@@ -95,7 +112,9 @@ export default function PortfolioPage() {
 
         try {
             await ApiClient.deleteAsset(editingAsset.id);
-            setShowAddModal(false);
+            setShowFinancialModal(false);
+            setShowDigitalModal(false);
+            setShowPhysicalModal(false);
             await invalidateData();
         } catch (error) {
             handleApiError(error, "Error al eliminar activo");
@@ -128,38 +147,51 @@ export default function PortfolioPage() {
         }
     };
 
-    const handleSaveAsset = async (payload: Partial<Asset>, instId: string, customInstName: string, loanPayload?: Partial<LoanOptions>, cdtPayload?: any) => {
-        try {
-            let finalInstId = instId;
+    // Helper to create Institution if needed
+    const _resolveInstitution = async (instId: string, customInstName: string) => {
+        if (instId === "NEW" && customInstName.trim()) {
+            const colors = ['#f43f5e', '#ec4899', '#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16', '#eab308', '#f59e0b', '#f97316', '#ef4444'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            const inst = await ApiClient.createInstitution(customInstName.trim(), 'other', 'building', randomColor);
+            return inst.id;
+        }
+        return instId === "NONE" ? null : instId;
+    };
 
-            if (finalInstId === "NEW" && customInstName.trim()) {
-                const colors = ['#f43f5e', '#ec4899', '#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16', '#eab308', '#f59e0b', '#f97316', '#ef4444'];
-                const randomColor = colors[Math.floor(Math.random() * colors.length)];
-                const inst = await ApiClient.createInstitution(customInstName.trim(), 'other', 'building', randomColor);
-                finalInstId = inst.id;
+    const handleSaveFinancial = async (payload: Partial<Asset>, instId: string, customInstName: string) => {
+        try {
+            const finalInstId = await _resolveInstitution(instId, customInstName);
+            const completePayload = { ...payload, institution_id: finalInstId };
+
+            if (editingAsset && editingAsset.type === 'financial') {
+                await ApiClient.updateAsset(editingAsset.id, completePayload);
+            } else {
+                await ApiClient.createAsset({ currency, is_manual: true, ...completePayload as any });
             }
 
-            const completePayload = {
-                ...payload,
-                institution_id: finalInstId === "NONE" || finalInstId === "NEW" ? null : finalInstId,
-            };
+            setShowFinancialModal(false);
+            await invalidateData();
+        } catch (error) {
+            handleApiError(error, "Error al guardar Financiero");
+        }
+    };
 
-            if (editingAsset) {
+    const handleSaveDigital = async (payload: Partial<Asset>, instId: string, customInstName: string, loanPayload?: Partial<LoanOptions>, cdtPayload?: any, investmentPayload?: { quantity: number; purchasePrice: number }) => {
+        try {
+            const finalInstId = await _resolveInstitution(instId, customInstName);
+            const completePayload = { ...payload, institution_id: finalInstId };
+
+            if (editingAsset && editingAsset.type === 'digital') {
                 await ApiClient.updateAsset(editingAsset.id, completePayload);
-                if (loanPayload && completePayload.type === 'digital' && completePayload.digital_type === 'loan') {
+                if (loanPayload && completePayload.digital_type === 'loan') {
                     await ApiClient.updateLoanDetails(editingAsset.id, loanPayload);
                 }
-                if (cdtPayload && completePayload.type === 'digital' && completePayload.digital_type === 'cdt') {
+                if (cdtPayload && completePayload.digital_type === 'cdt') {
                     await ApiClient.updateCdtDetails(editingAsset.id, cdtPayload);
                 }
             } else {
-                const newAsset = await ApiClient.createAsset({
-                    currency: currency,
-                    is_manual: true,
-                    ...completePayload as any
-                });
-
-                if (loanPayload && completePayload.type === 'digital' && completePayload.digital_type === 'loan') {
+                const newAsset = await ApiClient.createAsset({ currency, is_manual: true, ...completePayload as any });
+                if (loanPayload && completePayload.digital_type === 'loan') {
                     await ApiClient.createLoanDetails({
                         asset_id: newAsset.id,
                         debtor: loanPayload.debtor || "Deudor Desconocido",
@@ -170,8 +202,7 @@ export default function PortfolioPage() {
                         interest_rate_annual: loanPayload.interest_rate_annual || 0
                     });
                 }
-
-                if (cdtPayload && completePayload.type === 'digital' && completePayload.digital_type === 'cdt') {
+                if (cdtPayload && completePayload.digital_type === 'cdt') {
                     await ApiClient.createCdtDetails({
                         asset_id: newAsset.id,
                         principal_amount: cdtPayload.principal_amount || 0,
@@ -179,13 +210,38 @@ export default function PortfolioPage() {
                         term_days: cdtPayload.term_days || null,
                     });
                 }
+                // INITIAL BUY TRANSACTION FOR INVESTMENTS
+                if (investmentPayload && completePayload.digital_type === 'investment') {
+                    await ApiClient.createAssetTransaction(
+                        newAsset.id,
+                        'buy',
+                        investmentPayload.quantity,
+                        investmentPayload.purchasePrice,
+                        currency,
+                        new Date().toISOString().split('T')[0]
+                    );
+                }
             }
 
-            setShowAddModal(false);
+            setShowDigitalModal(false);
             await invalidateData();
         } catch (error) {
-            handleApiError(error, "Error al guardar activo");
-            throw error;
+            handleApiError(error, "Error al guardar Inversión");
+        }
+    };
+
+    const handleSavePhysical = async (payload: Partial<Asset>) => {
+        try {
+            if (editingAsset && editingAsset.type === 'physical') {
+                await ApiClient.updateAsset(editingAsset.id, payload);
+            } else {
+                await ApiClient.createAsset({ currency, is_manual: true, ...payload as any, institution_id: null });
+            }
+
+            setShowPhysicalModal(false);
+            await invalidateData();
+        } catch (error) {
+            handleApiError(error, "Error al guardar Patrimonio");
         }
     };
 
@@ -213,7 +269,8 @@ export default function PortfolioPage() {
                             <ArrowRightLeft size={20} className="sm:mr-2" />
                             <span className="hidden sm:inline">Transferir</span>
                         </Button>
-                        <Button onClick={openAddModal} className="w-12 h-12 rounded-[16px] p-0 flex items-center justify-center bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-1">
+                        {/* Remove Universal Plus Button, delegated to specific tabs now, or keeping it strictly tied to activeTab */}
+                        <Button onClick={openAddModal} className="w-12 h-12 rounded-[16px] p-0 flex items-center justify-center bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-1" title="Añadir Activo Rápido">
                             <Plus size={24} />
                         </Button>
                     </div>
@@ -293,13 +350,33 @@ export default function PortfolioPage() {
                 </Suspense>
 
                 <Suspense fallback={null}>
-                    <AssetFormModal
-                        isOpen={showAddModal}
+                    <FinancialAssetFormModal
+                        isOpen={showFinancialModal}
                         editingAsset={editingAsset}
                         institutions={institutions}
-                        activeTab={activeTab}
-                        onClose={() => setShowAddModal(false)}
-                        onSave={handleSaveAsset}
+                        onClose={() => setShowFinancialModal(false)}
+                        onSave={handleSaveFinancial}
+                        onDelete={editingAsset ? handleDeleteAsset : undefined}
+                    />
+                </Suspense>
+
+                <Suspense fallback={null}>
+                    <DigitalAssetFormModal
+                        isOpen={showDigitalModal}
+                        editingAsset={editingAsset}
+                        institutions={institutions}
+                        onClose={() => setShowDigitalModal(false)}
+                        onSave={handleSaveDigital}
+                        onDelete={editingAsset ? handleDeleteAsset : undefined}
+                    />
+                </Suspense>
+
+                <Suspense fallback={null}>
+                    <PhysicalAssetFormModal
+                        isOpen={showPhysicalModal}
+                        editingAsset={editingAsset}
+                        onClose={() => setShowPhysicalModal(false)}
+                        onSave={handleSavePhysical}
                         onDelete={editingAsset ? handleDeleteAsset : undefined}
                     />
                 </Suspense>
@@ -324,7 +401,7 @@ export default function PortfolioPage() {
                 {/* ADVANCED DIGITAL INVESTMENT (Non-CDT) */}
                 {dashboardAsset && dashboardAsset.type === 'digital' && dashboardAsset.digital_type === 'investment' && !dashboardAsset.cdt_details && (
                     <Suspense fallback={null}>
-                        <FinancialAssetDashboard
+                        <VariableIncomeAssetDashboard
                             asset={dashboardAsset}
                             currency={currency}
                             onClose={() => setDashboardAsset(null)}
