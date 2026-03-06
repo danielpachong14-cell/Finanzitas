@@ -49,27 +49,32 @@ export function FinancialAssetsList({ assets, institutions, currency, hideBalanc
                             </h4>
                             <span className="text-sm font-black text-foreground">{formatPrivacyCurrency(groupTotal, currency, hideBalances)}</span>
                         </div>
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4 font-sans">
                             {groupAssets.map(asset => (
-                                <div key={asset.id} onClick={() => onAssetClick(asset)} className="bg-card border border-border/50 rounded-[24px] p-4 flex items-center justify-between hover:border-primary/50 transition-colors group cursor-pointer shadow-sm hover:shadow-md">
-                                    <div>
-                                        <p className="font-bold text-foreground text-[17px] flex items-center">
+                                <div key={asset.id} onClick={() => onAssetClick(asset)} className="bg-card border border-border/50 rounded-[24px] p-5 flex flex-col hover:border-primary/50 transition-colors group cursor-pointer shadow-sm hover:shadow-md relative overflow-hidden">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <p className="font-bold text-foreground text-[17px] leading-tight pr-4 break-words">
                                             {asset.name}
                                         </p>
-                                        <div className="flex space-x-2 mt-1.5 items-center">
-                                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${asset.liquidity_layer === 'L1_immediate' ? 'bg-emerald-500/10 text-emerald-500' :
+                                        <div className="bg-muted text-muted-foreground p-2 rounded-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
+                                            <Building size={16} />
+                                        </div>
+                                    </div>
+                                    <div className="mt-auto">
+                                        <p className="font-black text-foreground text-2xl tracking-tight mb-3 break-words">
+                                            {formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}
+                                        </p>
+                                        <div className="flex space-x-2 items-center">
+                                            <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${asset.liquidity_layer === 'L1_immediate' ? 'bg-emerald-500/10 text-emerald-500' :
                                                 asset.liquidity_layer === 'L2_medium' ? 'bg-brand-orange/10 text-brand-orange' :
                                                     'bg-brand-blue/10 text-brand-blue'
                                                 }`}>
                                                 {asset.liquidity_layer.split('_')[0]}
                                             </span>
-                                            <span className="text-[11px] text-emerald-500 font-bold">
+                                            <span className="text-xs text-emerald-500 font-bold bg-emerald-500/5 px-2.5 py-1 rounded-md">
                                                 {asset.interest_rate_nominal > 0 ? `+${asset.interest_rate_nominal}% EA` : '0% EA'}
                                             </span>
                                         </div>
-                                    </div>
-                                    <div className="text-right flex flex-col items-end">
-                                        <p className="font-black text-foreground text-lg tracking-tight">{formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}</p>
                                     </div>
                                 </div>
                             ))}

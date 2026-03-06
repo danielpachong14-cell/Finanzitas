@@ -23,9 +23,9 @@ export function CDTAssetPreviewCard({ asset, currency, hideBalances, onClick, fo
         >
             <div className="flex items-center justify-between">
                 <div>
-                    <p className="font-bold text-foreground text-[17px] flex items-center">
+                    <p className="font-bold text-foreground text-[17px] flex flex-wrap items-center gap-2 break-words leading-tight pr-4">
                         {asset.name}
-                        <span className="ml-2 text-[10px] uppercase font-bold bg-brand-blue/10 text-brand-blue px-2 py-0.5 rounded-md">CDT</span>
+                        <span className="text-[10px] uppercase font-bold bg-brand-blue/10 text-brand-blue px-2 py-0.5 rounded-md">CDT</span>
                     </p>
                     <div className="flex space-x-2 mt-1.5 items-center">
                         <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${asset.liquidity_layer === 'L1_immediate' ? 'bg-emerald-500/10 text-emerald-500' :
@@ -40,7 +40,7 @@ export function CDTAssetPreviewCard({ asset, currency, hideBalances, onClick, fo
                     </div>
                 </div>
                 <div className="text-right flex flex-col items-end">
-                    <p className="font-black text-foreground text-lg tracking-tight">{formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}</p>
+                    <p className="font-black text-foreground text-lg tracking-tight break-words">{formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}</p>
                 </div>
             </div>
 
