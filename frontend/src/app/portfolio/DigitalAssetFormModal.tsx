@@ -14,7 +14,7 @@ interface DigitalAssetFormModalProps {
     editingAsset: Asset | null;
     institutions: Institution[];
     onClose: () => void;
-    onSave: (payload: Partial<Asset>, instId: string, instName: string, loanPayload?: Partial<LoanOptions>, cdtPayload?: Partial<any>, investmentPayload?: { quantity: number; purchasePrice: number }) => Promise<void>;
+    onSave: (payload: Partial<Asset>, instId: string, instName: string, loanPayload?: Partial<LoanOptions>, cdtPayload?: Partial<any>, investmentPayload?: { quantity: number; purchasePrice: number; currency: string }) => Promise<void>;
     onDelete?: () => Promise<void>;
 }
 
@@ -47,6 +47,7 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
     // Investment State
     const [investmentQuantity, setInvestmentQuantity] = useState("1");
     const [investmentPrice, setInvestmentPrice] = useState("");
+    const [investmentCurrency, setInvestmentCurrency] = useState("USD");
 
     // CDT State
     const [cdtTermType, setCdtTermType] = useState<'months' | 'days'>('months');
@@ -145,6 +146,7 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                 setSelectedTickerName("");
                 setInvestmentQuantity("1");
                 setInvestmentPrice("");
+                setInvestmentCurrency("USD");
                 setLoanDebtor("");
                 setLoanTerm("12");
                 setLoanGrace("0");
@@ -200,11 +202,12 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                 };
             }
 
-            let investmentPayload: { quantity: number; purchasePrice: number } | undefined = undefined;
+            let investmentPayload: { quantity: number; purchasePrice: number; currency: string } | undefined = undefined;
             if (newDigitalType === 'investment' && !editingAsset) {
                 investmentPayload = {
                     quantity: parseFloat(investmentQuantity) || 0,
-                    purchasePrice: parseFloat(investmentPrice) || 0
+                    purchasePrice: parseFloat(investmentPrice) || 0,
+                    currency: investmentCurrency
                 };
             }
 
@@ -417,8 +420,22 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                                     />
                                 </div>
                             </div>
+                            <div className="col-span-1">
+                                <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Moneda</label>
+                                <select
+                                    value={investmentCurrency}
+                                    onChange={e => setInvestmentCurrency(e.target.value)}
+                                    className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg appearance-none"
+                                    disabled={saving}
+                                >
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                    <option value="COP">COP ($)</option>
+                                    <option value="MXN">MXN ($)</option>
+                                </select>
+                            </div>
                             <div className="col-span-2 mt-[-8px]">
-                                <p className="text-xs text-muted-foreground ml-2">El total de tu inversión se registrará como: <strong className="text-foreground">${((parseFloat(investmentQuantity) || 0) * (parseFloat(investmentPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+                                <p className="text-xs text-muted-foreground ml-2">El total de tu inversión inicial será de: <strong className="text-foreground">{investmentCurrency} {((parseFloat(investmentQuantity) || 0) * (parseFloat(investmentPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
                             </div>
                         </div>
                     ) : (

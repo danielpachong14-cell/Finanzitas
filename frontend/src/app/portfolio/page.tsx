@@ -176,7 +176,7 @@ export default function PortfolioPage() {
         }
     };
 
-    const handleSaveDigital = async (payload: Partial<Asset>, instId: string, customInstName: string, loanPayload?: Partial<LoanOptions>, cdtPayload?: any, investmentPayload?: { quantity: number; purchasePrice: number }) => {
+    const handleSaveDigital = async (payload: Partial<Asset>, instId: string, customInstName: string, loanPayload?: Partial<LoanOptions>, cdtPayload?: any, investmentPayload?: { quantity: number; purchasePrice: number; currency: string }) => {
         try {
             const finalInstId = await _resolveInstitution(instId, customInstName);
             const completePayload = { ...payload, institution_id: finalInstId };

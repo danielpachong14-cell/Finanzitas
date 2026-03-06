@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useState } from "react";
-import { Home, PieChart, CreditCard, User, Target, Tags, ChevronLeft, ChevronRight, LogOut, Briefcase, Eye, EyeOff } from "lucide-react";
+import { Home, PieChart, CreditCard, User, Target, Tags, ChevronLeft, ChevronRight, LogOut, Briefcase, Eye, EyeOff, Building2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUserOptions } from "@/core/context/UserContext";
 
@@ -22,6 +22,7 @@ export function AppLayout({ children, hideNav = false }: AppLayoutProps) {
     { icon: Tags, label: "Categorías", href: "/categories" },
     { icon: PieChart, label: "Estadísticas", href: "/statistics" },
     { icon: Briefcase, label: "Portafolio", href: "/portfolio" },
+    { icon: Building2, label: "Entidades", href: "/institutions" },
     { icon: User, label: "Perfil", href: "/profile" },
   ];
 
