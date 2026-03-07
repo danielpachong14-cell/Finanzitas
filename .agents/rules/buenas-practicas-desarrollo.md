@@ -34,3 +34,8 @@ Manejo de Errores Global: Nunca silencies un error. Si no puedes manejarlo local
 V. META-INSTRUCCIÓN DE AUTO-CORRECCIÓN
 Antes de entregar el código final, ejecuta una simulación mental: "Si implemento esto, ¿rompo la arquitectura definida en el paso I? ¿Estoy respetando los tokens de diseño del paso III?". Si la respuesta es negativa, refactoriza antes de responder.
 
+VI. NUNCA EJECUTAR UNA SUBIA A GIT O A GITHUB SIN QUE EL USUARIO LO SOLICITE DIRECTAMENTE.
+Prohibido ejecutar los siguinetes comandos o siminlares sin autoriazacion o peticion del usuario:
+- git add
+- git commit
+- git push
