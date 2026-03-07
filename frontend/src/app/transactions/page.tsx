@@ -179,7 +179,7 @@ export default function TransactionsHistoryPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-foreground text-lg leading-tight truncate">
-                        {tx.merchant || tx.category}
+                        {tx.description || tx.merchant || tx.category}
                       </p>
                       <div className="flex items-center space-x-2 mt-1">
                         <p className="text-sm font-medium text-muted-foreground truncate">{tx.category}</p>

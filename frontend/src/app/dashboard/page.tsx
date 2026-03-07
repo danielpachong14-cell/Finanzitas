@@ -148,7 +148,7 @@ export default function DashboardPage() {
                       {tx.category.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-bold text-foreground text-base leading-tight">{tx.merchant || tx.category}</p>
+                      <p className="font-bold text-foreground text-base leading-tight">{tx.description || tx.merchant || tx.category}</p>
                       <div className="flex items-center space-x-2 mt-0.5">
                         <p className="text-xs text-muted-foreground">{tx.category}</p>
                         {tx.subcategory && (
