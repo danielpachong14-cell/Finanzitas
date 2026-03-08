@@ -7,6 +7,7 @@ import { FmpService, FmpQuote, FmpHistoricalPrice } from "@/core/api/providers/F
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useExchangeRate } from "@/core/hooks/useExchangeRate";
 
 interface VariableIncomeAssetDashboardProps {
     asset: Asset;
@@ -28,8 +29,12 @@ export function VariableIncomeAssetDashboard({ asset, currency, onClose, onUpdat
     const [txType, setTxType] = useState<'buy' | 'sell'>('buy');
     const [quantity, setQuantity] = useState('');
     const [price, setPrice] = useState('');
-    const [txCurrency, setTxCurrency] = useState(currency || 'USD');
+    const [txCurrency, setTxCurrency] = useState(asset.currency || currency || 'USD');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Live exchange rate
+    const assetCurrency = asset.currency || 'USD';
+    const { rate: exchangeRate, isLoading: isRateLoading } = useExchangeRate(assetCurrency, currency);
 
     useEffect(() => {
         loadData();
@@ -101,14 +106,22 @@ export function VariableIncomeAssetDashboard({ asset, currency, onClose, onUpdat
         return tx.type === 'buy' ? sum + Number(tx.quantity) : sum - Number(tx.quantity);
     }, 0);
 
-    const totalInvested = transactions.reduce((sum, tx) => {
+    const totalInvestedOriginal = transactions.reduce((sum, tx) => {
         const value = Number(tx.quantity) * Number(tx.price_per_share);
         return tx.type === 'buy' ? sum + value : sum - value;
     }, 0);
 
-    const currentMarketValue = quote ? totalShares * quote.price : asset.current_value;
+    const currentMarketValueOriginal = quote ? totalShares * quote.price : (asset.current_value / (asset.currency !== currency && exchangeRate ? exchangeRate : 1));
+    const profitLossOriginal = currentMarketValueOriginal - totalInvestedOriginal;
+
+    // Average price logic
+    const averagePriceOriginal = totalShares > 0 ? totalInvestedOriginal / totalShares : 0;
+
+    // Converted to base currency
+    const currentMarketValue = currentMarketValueOriginal * exchangeRate;
+    const totalInvested = totalInvestedOriginal * exchangeRate;
     const profitLoss = currentMarketValue - totalInvested;
-    const profitLossPercentage = totalInvested > 0 ? (profitLoss / totalInvested) * 100 : 0;
+    const profitLossPercentage = totalInvestedOriginal > 0 ? (profitLossOriginal / totalInvestedOriginal) * 100 : 0;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 fade-in duration-200">
@@ -152,29 +165,57 @@ export function VariableIncomeAssetDashboard({ asset, currency, onClose, onUpdat
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div>
                                 <p className="text-xs uppercase font-bold text-muted-foreground mb-1">Valor de Mercado</p>
-                                <p className="text-2xl font-black text-foreground">{formatCurrency(currentMarketValue, currency)}</p>
+                                <p className="text-2xl font-black text-foreground">{formatCurrency(currentMarketValueOriginal, assetCurrency)}</p>
+                                {assetCurrency !== currency && (
+                                    <p className="text-sm font-bold text-muted-foreground mt-0.5 animate-pulse">
+                                        {isRateLoading ? 'Convirtiendo...' : `≈ ${formatCurrency(currentMarketValue, currency)}`}
+                                    </p>
+                                )}
                             </div>
                             <div>
                                 <p className="text-xs uppercase font-bold text-muted-foreground mb-1">Inversión Neta</p>
-                                <p className="text-xl font-bold text-foreground">{formatCurrency(totalInvested, currency)}</p>
+                                <p className="text-xl font-bold text-foreground">{formatCurrency(totalInvestedOriginal, assetCurrency)}</p>
+                                {assetCurrency !== currency && (
+                                    <p className="text-xs font-bold text-muted-foreground mt-0.5">
+                                        {isRateLoading ? '...' : `≈ ${formatCurrency(totalInvested, currency)}`}
+                                    </p>
+                                )}
                             </div>
                             <div>
                                 <p className="text-xs uppercase font-bold text-muted-foreground mb-1">Rendimiento</p>
-                                <div className={`flex items-center gap-1 text-lg font-bold ${profitLoss >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                    {profitLoss >= 0 ? '+' : ''}{formatCurrency(profitLoss, currency)}
+                                <div className={`flex items-center gap-1 text-lg font-bold ${profitLossOriginal >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                    {profitLossOriginal >= 0 ? '+' : ''}{formatCurrency(profitLossOriginal, assetCurrency)}
                                 </div>
+                                {assetCurrency !== currency && (
+                                    <p className="text-xs font-bold text-muted-foreground mt-0.5">
+                                        {isRateLoading ? '...' : `≈ ${profitLoss >= 0 ? '+' : ''}${formatCurrency(profitLoss, currency)}`}
+                                    </p>
+                                )}
                             </div>
                             <div>
                                 <p className="text-xs uppercase font-bold text-muted-foreground mb-1">Rentabilidad</p>
                                 <div className={`flex items-center w-fit gap-1 px-2 py-1 rounded-md text-sm font-bold ${profitLossPercentage >= 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
                                     {profitLossPercentage >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                                    {profitLossPercentage.toFixed(2)}%
+                                    {profitLossPercentage >= 0 ? '+' : ''}{profitLossPercentage.toFixed(2)}%
                                 </div>
+                                <p className="text-[10px] text-muted-foreground font-bold mt-1 uppercase tracking-tight">Total P&L %</p>
+                            </div>
+                            <div>
+                                <p className="text-xs uppercase font-bold text-muted-foreground mb-1">Precio Promedio</p>
+                                <p className="text-xl font-bold text-foreground leading-none">{formatCurrency(averagePriceOriginal, assetCurrency)}</p>
+                                <p className="text-[10px] text-muted-foreground font-bold mt-1 uppercase tracking-tight">Costo de Adquisición</p>
                             </div>
                         </div>
                         <div className="mt-4 pt-4 border-t border-border/50 text-sm font-bold text-muted-foreground flex items-center justify-between">
-                            <span>Cotización Actual (FMP): {quote ? `$${quote.price.toFixed(2)}` : 'N/A'}</span>
-                            <span>Acciones/Monedas (Holding): {totalShares.toFixed(4)}</span>
+                            <span>
+                                Precio: {quote ? `$${quote.price.toFixed(2)} ${assetCurrency}` : 'N/A'}
+                                {quote && assetCurrency !== currency && !isRateLoading && (
+                                    <span className="ml-2 text-muted-foreground/60 text-[10px]">
+                                        ≈ {formatCurrency(quote.price * exchangeRate, currency)}
+                                    </span>
+                                )}
+                            </span>
+                            <span>Holding: {totalShares.toFixed(4)}</span>
                         </div>
                     </div>
 
@@ -283,7 +324,7 @@ export function VariableIncomeAssetDashboard({ asset, currency, onClose, onUpdat
                                         <div className="text-right flex items-center gap-4">
                                             <div>
                                                 <p className="font-bold text-sm text-foreground">{tx.quantity} a ${Number(tx.price_per_share).toFixed(2)}</p>
-                                                <p className="text-xs font-bold text-muted-foreground">Total: ${formatCurrency(Number(tx.quantity) * Number(tx.price_per_share), '')}</p>
+                                                <p className="text-xs font-bold text-muted-foreground">Total: {formatCurrency(Number(tx.quantity) * Number(tx.price_per_share), tx.currency)}</p>
                                             </div>
                                             <button onClick={() => handleDeleteTransaction(tx.id)} className="text-muted-foreground hover:text-red-500 transition-colors" title="Eliminar orden">
                                                 <X size={14} />

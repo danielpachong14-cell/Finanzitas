@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, RefreshCcw, Landmark, Activi
 import { useUserOptions } from "@/core/context/UserContext";
 import { Button } from "@/components/ui/button";
 import { eaToDailyRate } from "@/core/finance/interestCalculator";
+import { useExchangeRate } from "@/core/hooks/useExchangeRate";
 
 interface Props {
     asset: Asset;
@@ -29,6 +30,10 @@ export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, on
     const [movementAmount, setMovementAmount] = useState("");
     const [movementDate, setMovementDate] = useState(new Date().toISOString().split('T')[0]);
     const [saving, setSaving] = useState(false);
+
+    // Live exchange rate
+    const assetCurrency = asset.currency || 'USD';
+    const { rate: exchangeRate, isLoading: isRateLoading } = useExchangeRate(assetCurrency, currency);
 
     const [realBalanceForm, setRealBalanceForm] = useState(false);
     const [realBalanceInput, setRealBalanceInput] = useState("");
@@ -203,17 +208,22 @@ export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, on
                     <div className="bg-gradient-to-br from-primary to-primary/80 rounded-[32px] p-6 text-primary-foreground shadow-lg shadow-primary/20 relative overflow-hidden">
                         <Landmark size={120} className="absolute -right-4 -bottom-4 opacity-10" />
                         <p className="font-bold text-primary-foreground/80 mb-1 tracking-wide uppercase text-sm">Saldo Real</p>
-                        <h3 className="text-4xl font-black tracking-tighter mb-4">{formatPrivacyCurrency(asset.current_value, currency, hideBalances)}</h3>
+                        <h3 className="text-4xl font-black tracking-tighter mb-1">{formatPrivacyCurrency(asset.current_value, assetCurrency, hideBalances)}</h3>
+                        {assetCurrency !== currency && (
+                            <p className="text-lg font-bold text-primary-foreground/70 mb-4 animate-pulse">
+                                {isRateLoading ? 'Convirtiendo...' : `≈ ${formatPrivacyCurrency(asset.current_value * exchangeRate, currency, hideBalances)}`}
+                            </p>
+                        )}
 
                         {!realBalanceForm ? (
                             <Button
                                 onClick={() => { setRealBalanceInput(asset.current_value.toString()); setRealBalanceForm(true); }}
-                                className="bg-background/20 hover:bg-background/30 text-white border-none rounded-xl font-bold h-10 px-4"
+                                className="bg-background/20 hover:bg-background/30 text-white border-none rounded-xl font-bold h-10 px-4 mt-2"
                             >
                                 <RefreshCcw size={16} className="mr-2" /> Cuadrar Saldo
                             </Button>
                         ) : (
-                            <form onSubmit={handleAjusteSaldo} className="flex gap-2 relative z-10">
+                            <form onSubmit={handleAjusteSaldo} className="flex gap-2 relative z-10 mt-2">
                                 <input
                                     type="number"
                                     step="0.01"
@@ -238,9 +248,16 @@ export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, on
                         {loading ? (
                             <div className="h-10 w-48 bg-muted animate-pulse rounded-lg mt-2"></div>
                         ) : (
-                            <h3 className="text-4xl font-black text-foreground tracking-tighter mb-2">
-                                {formatPrivacyCurrency(theoreticalBalance, currency, hideBalances)}
-                            </h3>
+                            <>
+                                <h3 className="text-4xl font-black text-foreground tracking-tighter mb-1">
+                                    {formatPrivacyCurrency(theoreticalBalance, assetCurrency, hideBalances)}
+                                </h3>
+                                {assetCurrency !== currency && (
+                                    <p className="text-lg font-bold text-muted-foreground mb-2">
+                                        {isRateLoading ? '...' : `≈ ${formatPrivacyCurrency(theoreticalBalance * exchangeRate, currency, hideBalances)}`}
+                                    </p>
+                                )}
+                            </>
                         )}
                         <p className="text-xs font-bold text-emerald-500 bg-emerald-500/10 inline-block px-2 py-1 rounded-md mt-2">
                             Actualizado al día de hoy
@@ -304,7 +321,7 @@ export function FinancialAssetDashboard({ asset, currency, onClose, onUpdate, on
                                             mov.amount > 0 ? 'text-emerald-500' : 'text-destructive'
                                         }`}>
                                         {mov.type === 'withdrawal' ? '-' : mov.amount > 0 ? '+' : ''}
-                                        {formatPrivacyCurrency(Math.abs(mov.amount), currency, hideBalances)}
+                                        {formatPrivacyCurrency(Math.abs(mov.amount), assetCurrency, hideBalances)}
                                     </div>
                                 </div>
                             ))}

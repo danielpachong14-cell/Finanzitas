@@ -47,7 +47,8 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
     // Investment State
     const [investmentQuantity, setInvestmentQuantity] = useState("1");
     const [investmentPrice, setInvestmentPrice] = useState("");
-    const [investmentCurrency, setInvestmentCurrency] = useState("USD");
+    // Currency State (used for all now)
+    const [newCurrency, setNewCurrency] = useState("USD");
 
     // CDT State
     const [cdtTermType, setCdtTermType] = useState<'months' | 'days'>('months');
@@ -146,7 +147,7 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                 setSelectedTickerName("");
                 setInvestmentQuantity("1");
                 setInvestmentPrice("");
-                setInvestmentCurrency("USD");
+                setNewCurrency("USD");
                 setLoanDebtor("");
                 setLoanTerm("12");
                 setLoanGrace("0");
@@ -172,6 +173,7 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                 type: 'digital',
                 digital_type: newDigitalType,
                 liquidity_layer: newLiquidity,
+                currency: newCurrency,
                 current_value: newDigitalType === 'investment' && !editingAsset
                     ? (parseFloat(investmentQuantity) || 0) * (parseFloat(investmentPrice) || 0)
                     : (parseFloat(newVal) || 0),
@@ -207,7 +209,7 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                 investmentPayload = {
                     quantity: parseFloat(investmentQuantity) || 0,
                     purchasePrice: parseFloat(investmentPrice) || 0,
-                    currency: investmentCurrency
+                    currency: newCurrency
                 };
             }
 
@@ -423,8 +425,8 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                             <div className="col-span-1">
                                 <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Moneda</label>
                                 <select
-                                    value={investmentCurrency}
-                                    onChange={e => setInvestmentCurrency(e.target.value)}
+                                    value={newCurrency}
+                                    onChange={e => setNewCurrency(e.target.value)}
                                     className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg appearance-none"
                                     disabled={saving}
                                 >
@@ -435,7 +437,7 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                                 </select>
                             </div>
                             <div className="col-span-2 mt-[-8px]">
-                                <p className="text-xs text-muted-foreground ml-2">El total de tu inversión inicial será de: <strong className="text-foreground">{investmentCurrency} {((parseFloat(investmentQuantity) || 0) * (parseFloat(investmentPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+                                <p className="text-xs text-muted-foreground ml-2">El total de tu inversión inicial será de: <strong className="text-foreground">{newCurrency} {((parseFloat(investmentQuantity) || 0) * (parseFloat(investmentPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
                             </div>
                         </div>
                     ) : (
@@ -450,10 +452,10 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                                     onChange={e => setNewVal(e.target.value)}
                                     placeholder="0.00"
                                     className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg"
-                                    disabled={saving || (newDigitalType === 'investment' && editingAsset !== null)}
+                                    disabled={saving}
                                 />
                                 {newDigitalType === 'investment' && editingAsset && (
-                                    <p className="text-[10px] text-muted-foreground ml-2 mt-1 -mb-2">Calculado vía FMP o Libro Mayor de Transacciones.</p>
+                                    <p className="text-[10px] text-muted-foreground ml-2 mt-1 -mb-2">Calculado vía FMP/Libro Mayor. Puedes ajustar este valor manualmente como respaldo si es necesario.</p>
                                 )}
                             </div>
                             {(newDigitalType === 'cdt' && !editingAsset) && (
@@ -469,6 +471,20 @@ export function DigitalAssetFormModal({ isOpen, editingAsset, institutions, onCl
                                     />
                                 </div>
                             )}
+                            <div className={(newDigitalType === 'cdt' && !editingAsset) ? 'col-span-2 mt-2' : 'col-span-1 mt-2'}>
+                                <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Moneda</label>
+                                <select
+                                    value={newCurrency}
+                                    onChange={e => setNewCurrency(e.target.value)}
+                                    className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg appearance-none"
+                                    disabled={saving}
+                                >
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                    <option value="COP">COP ($)</option>
+                                    <option value="MXN">MXN ($)</option>
+                                </select>
+                            </div>
                         </div>
                     )}
 

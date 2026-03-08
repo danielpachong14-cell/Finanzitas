@@ -3,36 +3,30 @@ import { Asset } from "@/core/api";
 import { formatPrivacyCurrency } from "@/lib/utils";
 import { AlignJustify, LayoutGrid } from "lucide-react";
 import { PhysicalAssetCard } from "./PhysicalAssetCard";
+import { useConvertedPortfolio } from "@/core/hooks/useConvertedPortfolio";
 
 interface PhysicalAssetsListProps {
     assets: Asset[]; // Pre-filtered to type === 'physical'
     currency: string;
     hideBalances: boolean;
     onAssetClick: (asset: Asset) => void;
+    getAssetNetValueConverted: (a: Asset) => number;
 }
 
-export function PhysicalAssetsList({ assets, currency, hideBalances, onAssetClick }: PhysicalAssetsListProps) {
+export function PhysicalAssetsList({ assets, currency, hideBalances, onAssetClick, getAssetNetValueConverted }: PhysicalAssetsListProps) {
     const [physicalSortBy, setPhysicalSortBy] = useState<'category' | 'alpha' | 'value_desc' | 'value_asc'>('category');
     const [physicalViewMode, setPhysicalViewMode] = useState<'list' | 'gallery'>('list');
 
     if (assets.length === 0) return null;
 
-    const getAssetNetValue = (a: Asset) => {
-        if (a.has_credit && a.credit_amount) {
-            const pendingDebt = a.credit_amount - (a.credit_paid || 0);
-            return Number(a.current_value) - pendingDebt;
-        }
-        return Number(a.current_value);
-    };
-
-    // Sort logic for physical assets
+    // Sorting now uses the converted net value for accuracy across currencies
     const sortedPhysicalAssets = [...assets].sort((a, b) => {
         if (physicalSortBy === 'alpha') {
             return a.name.localeCompare(b.name);
         } else if (physicalSortBy === 'value_desc') {
-            return getAssetNetValue(b) - getAssetNetValue(a);
+            return getAssetNetValueConverted(b) - getAssetNetValueConverted(a);
         } else if (physicalSortBy === 'value_asc') {
-            return getAssetNetValue(a) - getAssetNetValue(b);
+            return getAssetNetValueConverted(a) - getAssetNetValueConverted(b);
         }
         // Default 'category'
         const typeA = a.physical_type || 'other';
@@ -83,7 +77,7 @@ export function PhysicalAssetsList({ assets, currency, hideBalances, onAssetClic
 
             {physicalSortBy === 'category' ? (
                 Object.entries(physicalByType).map(([typeGroup, gAssets]) => {
-                    const groupTotal = gAssets.reduce((sum, a) => sum + getAssetNetValue(a), 0);
+                    const groupTotalConverted = gAssets.reduce((sum, a) => sum + getAssetNetValueConverted(a), 0);
                     const tName = typeGroup === 'real_estate' ? 'Bienes Raíces' : typeGroup === 'vehicle' ? 'Vehículos' : typeGroup === 'business' ? 'Empresas / Negocios' : typeGroup === 'tech' ? 'Tecnología' : typeGroup === 'jewelry' ? 'Joyas / Arte' : 'Otros Físicos';
 
                     return (
@@ -95,7 +89,7 @@ export function PhysicalAssetsList({ assets, currency, hideBalances, onAssetClic
                                         {gAssets.length}
                                     </span>
                                 </h4>
-                                <span className="text-sm font-black text-foreground">{formatPrivacyCurrency(groupTotal, currency, hideBalances)}</span>
+                                <span className="text-sm font-black text-foreground">{formatPrivacyCurrency(groupTotalConverted, currency, hideBalances)}</span>
                             </div>
                             <div className={physicalViewMode === 'gallery' ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-3"}>
                                 {gAssets.map(asset => (

@@ -19,6 +19,7 @@ export function PhysicalAssetFormModal({ isOpen, editingAsset, onClose, onSave, 
     // Form State
     const [newName, setNewName] = useState("");
     const [newVal, setNewVal] = useState("");
+    const [newCurrency, setNewCurrency] = useState("COP");
 
     // Physical Specific
     const [newPhysicalType, setNewPhysicalType] = useState<PhysicalAssetType>('real_estate');
@@ -31,6 +32,7 @@ export function PhysicalAssetFormModal({ isOpen, editingAsset, onClose, onSave, 
             if (editingAsset && editingAsset.type === 'physical') {
                 setNewName(editingAsset.name);
                 setNewVal(editingAsset.current_value.toString());
+                setNewCurrency(editingAsset.currency || "COP");
                 setNewPhysicalType(editingAsset.physical_type || 'real_estate');
                 setNewHasCredit(editingAsset.has_credit || false);
                 setNewCreditAmount(editingAsset.credit_amount?.toString() || "");
@@ -38,6 +40,7 @@ export function PhysicalAssetFormModal({ isOpen, editingAsset, onClose, onSave, 
             } else {
                 setNewName("");
                 setNewVal("");
+                setNewCurrency("COP");
                 setNewPhysicalType('real_estate');
                 setNewHasCredit(false);
                 setNewCreditAmount("");
@@ -58,6 +61,7 @@ export function PhysicalAssetFormModal({ isOpen, editingAsset, onClose, onSave, 
                 name: newName,
                 type: 'physical',
                 liquidity_layer: 'L3_low', // Físicos siempre son ilíquidos
+                currency: newCurrency,
                 current_value: parseFloat(newVal) || 0,
                 physical_type: newPhysicalType,
                 has_credit: newHasCredit,
@@ -115,18 +119,34 @@ export function PhysicalAssetFormModal({ isOpen, editingAsset, onClose, onSave, 
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Valuación Estimada de Mercado</label>
-                        <input
-                            type="number"
-                            required
-                            step="any"
-                            value={newVal}
-                            onChange={e => setNewVal(e.target.value)}
-                            placeholder="0.00"
-                            className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg"
-                            disabled={saving}
-                        />
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Valuación Estimada de Mercado</label>
+                            <input
+                                type="number"
+                                required
+                                step="any"
+                                value={newVal}
+                                onChange={e => setNewVal(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg"
+                                disabled={saving}
+                            />
+                        </div>
+                        <div className="col-span-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Moneda</label>
+                            <select
+                                value={newCurrency}
+                                onChange={e => setNewCurrency(e.target.value)}
+                                className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg appearance-none"
+                                disabled={saving}
+                            >
+                                <option value="COP">COP ($)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="MXN">MXN ($)</option>
+                            </select>
+                        </div>
                     </div>
 
                     <PhysicalFormFields

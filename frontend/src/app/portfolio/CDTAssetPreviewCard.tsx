@@ -1,6 +1,7 @@
 import React from 'react';
 import { Asset } from '@/core/api';
 import { useCdtYield } from '@/core/hooks/useCdtYield';
+import { useExchangeRate } from '@/core/hooks/useExchangeRate';
 
 interface Props {
     asset: Asset;
@@ -13,6 +14,9 @@ interface Props {
 export function CDTAssetPreviewCard({ asset, currency, hideBalances, onClick, formatPrivacyCurrency }: Props) {
     const { daysPassed, totalDays, currentNetYield: netYield } = useCdtYield(asset);
     const cdtDetails = asset.cdt_details;
+
+    const assetCurrency = asset.currency || 'USD';
+    const { rate: exchangeRate, isLoading: isRateLoading } = useExchangeRate(assetCurrency, currency);
 
     const progressPerc = totalDays > 0 ? Math.min((daysPassed / totalDays) * 100, 100) : 0;
 
@@ -40,7 +44,14 @@ export function CDTAssetPreviewCard({ asset, currency, hideBalances, onClick, fo
                     </div>
                 </div>
                 <div className="text-right flex flex-col items-end">
-                    <p className="font-black text-foreground text-lg tracking-tight break-words">{formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}</p>
+                    <p className="font-black text-foreground text-lg tracking-tight break-words leading-none">
+                        {formatPrivacyCurrency(asset.current_value, assetCurrency, hideBalances)}
+                    </p>
+                    {assetCurrency !== currency && (
+                        <p className="text-[10px] font-bold text-muted-foreground mt-0.5">
+                            {isRateLoading ? '...' : `≈ ${formatPrivacyCurrency(asset.current_value * exchangeRate, currency, hideBalances)}`}
+                        </p>
+                    )}
                 </div>
             </div>
 

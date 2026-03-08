@@ -5,6 +5,7 @@ import { X, Calendar, TrendingUp, Clock, AlertCircle, ShieldCheck } from "lucide
 import { COLOMBIAN_TAX } from "@/core/finance/interestCalculator";
 import { useCdtYield } from "@/core/hooks/useCdtYield";
 import { formatCurrency } from "@/lib/utils";
+import { useExchangeRate } from "@/core/hooks/useExchangeRate";
 
 interface CDTAssetDashboardProps {
     asset: Asset;
@@ -26,8 +27,12 @@ export function CDTAssetDashboard({ asset, currency, onClose, onEdit }: CDTAsset
         projectedGrossYield, projectedRetefuente, projectedNetYield,
     } = useCdtYield(asset);
 
-    const formatCurrencyValue = (val: number) => {
-        return formatCurrency(val, currency);
+    // Live exchange rate
+    const assetCurrency = asset.currency || 'USD';
+    const { rate: exchangeRate, isLoading: isRateLoading } = useExchangeRate(assetCurrency, currency);
+
+    const formatCurrencyValue = (val: number, cur?: string) => {
+        return formatCurrency(val, cur || assetCurrency);
     };
 
     if (!cdtDetails) return null;
@@ -65,6 +70,11 @@ export function CDTAssetDashboard({ asset, currency, onClose, onEdit }: CDTAsset
                         <h1 className="text-4xl sm:text-5xl font-black text-foreground tracking-tighter">
                             {formatCurrencyValue(principal + currentNetYield)}
                         </h1>
+                        {assetCurrency !== currency && (
+                            <p className="text-lg font-bold text-muted-foreground mt-1 mb-2 animate-pulse">
+                                {isRateLoading ? 'Convirtiendo...' : `≈ ${formatCurrency((principal + currentNetYield) * exchangeRate, currency)}`}
+                            </p>
+                        )}
                         <div className="flex flex-col items-center gap-1 mt-3">
                             <p className="text-sm font-bold text-emerald-500 bg-emerald-500/10 inline-block px-3 py-1 rounded-full">
                                 +{formatCurrencyValue(currentNetYield)} neto ganado
@@ -149,7 +159,14 @@ export function CDTAssetDashboard({ asset, currency, onClose, onEdit }: CDTAsset
                             </div>
                             <div className="flex justify-between items-center py-3 bg-emerald-500/5 rounded-xl px-3 -mx-1">
                                 <span className="text-sm font-bold text-foreground">Retorno Total Neto</span>
-                                <span className="text-lg font-black text-foreground">{formatCurrencyValue(principal + projectedNetYield)}</span>
+                                <div>
+                                    <p className="text-lg font-black text-foreground text-right">{formatCurrencyValue(principal + projectedNetYield)}</p>
+                                    {assetCurrency !== currency && (
+                                        <p className="text-xs font-bold text-muted-foreground text-right">
+                                            {isRateLoading ? '...' : `≈ ${formatCurrency((principal + projectedNetYield) * exchangeRate, currency)}`}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>

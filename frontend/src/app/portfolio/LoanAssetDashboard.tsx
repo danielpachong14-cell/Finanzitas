@@ -7,6 +7,7 @@ import { ArrowLeft, HandCoins, Info, History, FileText, ChevronRight, Pencil, Tr
 import { handleApiError } from "@/core/errors/handleApiError";
 import { Button } from "@/components/ui/button";
 import { useLoanAmortization } from "@/core/hooks/useLoanAmortization";
+import { useExchangeRate } from "@/core/hooks/useExchangeRate";
 
 interface Props {
     asset: Asset;
@@ -22,6 +23,10 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
     const [loading, setLoading] = useState(true);
 
     const [activeTab, setActiveTab] = useState<'schedule' | 'history'>('schedule');
+
+    // Live exchange rate
+    const assetCurrency = asset.currency || 'USD';
+    const { rate: exchangeRate, isLoading: isRateLoading } = useExchangeRate(assetCurrency, currency);
 
     useEffect(() => {
         if (loanData?.amortization_type === 'none') {
@@ -221,14 +226,24 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                             <div className="bg-card border border-border/50 rounded-3xl p-5 flex flex-col justify-center relative overflow-hidden">
                                 <p className="text-sm font-bold text-muted-foreground mb-1">Saldo Pendiente</p>
                                 <h3 className="text-2xl font-black text-brand-blue truncate">
-                                    {formatCurrency(currentPrincipal, currency)}
+                                    {formatCurrency(currentPrincipal, assetCurrency)}
                                 </h3>
+                                {assetCurrency !== currency && (
+                                    <p className="text-xs font-bold text-muted-foreground mt-1 truncate">
+                                        {isRateLoading ? '...' : `≈ ${formatCurrency(currentPrincipal * exchangeRate, currency)}`}
+                                    </p>
+                                )}
                             </div>
                             <div className="bg-card border border-border/50 rounded-3xl p-5 flex flex-col justify-center">
                                 <p className="text-sm font-bold text-muted-foreground mb-1">Monto Inicial</p>
                                 <h3 className="text-xl font-bold text-foreground truncate">
-                                    {formatCurrency(loanData.principal_amount, currency)}
+                                    {formatCurrency(loanData.principal_amount, assetCurrency)}
                                 </h3>
+                                {assetCurrency !== currency && (
+                                    <p className="text-xs font-bold text-muted-foreground mt-1 truncate">
+                                        {isRateLoading ? '...' : `≈ ${formatCurrency(loanData.principal_amount * exchangeRate, currency)}`}
+                                    </p>
+                                )}
                             </div>
                             <div className="bg-card border border-border/50 rounded-3xl p-5 flex flex-col justify-center">
                                 <p className="text-sm font-bold text-muted-foreground mb-1">Tasa Interés</p>
@@ -239,15 +254,25 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                             <div className="bg-card border border-border/50 rounded-3xl p-5 flex flex-col justify-center">
                                 <p className="text-sm font-bold text-muted-foreground mb-1">Total Pagado</p>
                                 <h3 className="text-xl font-bold text-emerald-500 truncate">
-                                    {formatCurrency(totalPaidValue, currency)}
+                                    {formatCurrency(totalPaidValue, assetCurrency)}
                                 </h3>
+                                {assetCurrency !== currency && (
+                                    <p className="text-xs font-bold text-muted-foreground mt-1 truncate">
+                                        {isRateLoading ? '...' : `≈ ${formatCurrency(totalPaidValue * exchangeRate, currency)}`}
+                                    </p>
+                                )}
                             </div>
                             <div className="bg-card border border-emerald-500/30 rounded-3xl p-5 flex flex-col justify-center relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-full h-0.5 bg-emerald-500"></div>
                                 <p className="text-sm font-bold text-muted-foreground mb-1">Rendimientos</p>
                                 <h3 className="text-xl font-black text-emerald-500 truncate">
-                                    +{formatCurrency(totalInterestPaid, currency)}
+                                    +{formatCurrency(totalInterestPaid, assetCurrency)}
                                 </h3>
+                                {assetCurrency !== currency && (
+                                    <p className="text-xs font-bold text-muted-foreground mt-1 truncate">
+                                        {isRateLoading ? '...' : `≈ +${formatCurrency(totalInterestPaid * exchangeRate, currency)}`}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -300,10 +325,10 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                                             {schedule.map((row: any, i: number) => (
                                                 <tr key={i} className="hover:bg-muted/30 transition-colors">
                                                     <td className="px-5 py-3 font-bold text-foreground">Mes {row.month}</td>
-                                                    <td className="px-5 py-3 text-right font-medium text-foreground">{formatCurrency(row.installment, currency)}</td>
-                                                    <td className="px-5 py-3 text-right font-medium text-blue-500">{formatCurrency(row.principal, currency)}</td>
-                                                    <td className="px-5 py-3 text-right font-medium text-emerald-500">{formatCurrency(row.interest, currency)}</td>
-                                                    <td className="px-5 py-3 text-right font-bold text-foreground">{formatCurrency(row.balance, currency)}</td>
+                                                    <td className="px-5 py-3 text-right font-medium text-foreground">{formatCurrency(row.installment, assetCurrency)}</td>
+                                                    <td className="px-5 py-3 text-right font-medium text-blue-500">{formatCurrency(row.principal, assetCurrency)}</td>
+                                                    <td className="px-5 py-3 text-right font-medium text-emerald-500">{formatCurrency(row.interest, assetCurrency)}</td>
+                                                    <td className="px-5 py-3 text-right font-bold text-foreground">{formatCurrency(row.balance, assetCurrency)}</td>
                                                 </tr>
                                             ))}
                                             {schedule.length === 0 && (
@@ -330,15 +355,15 @@ export function LoanAssetDashboard({ asset, currency, onClose, onUpdate, onEdit 
                                     payments.map(p => (
                                         <div key={p.id} className="bg-card border border-border/50 rounded-3xl p-5 flex items-center justify-between gap-4">
                                             <div>
-                                                <p className="font-bold text-foreground text-lg mb-1">{formatCurrency(p.payment_amount, currency)}</p>
+                                                <p className="font-bold text-foreground text-lg mb-1">{formatCurrency(p.payment_amount, assetCurrency)}</p>
                                                 <p className="text-xs text-muted-foreground flex gap-2">
-                                                    <span className="text-blue-500 font-medium">CAP: {formatCurrency(p.principal_amount, currency)}</span>
+                                                    <span className="text-blue-500 font-medium">CAP: {formatCurrency(p.principal_amount, assetCurrency)}</span>
                                                     <span>•</span>
-                                                    <span className="text-emerald-500 font-medium">INT: {formatCurrency(p.interest_amount, currency)}</span>
+                                                    <span className="text-emerald-500 font-medium">INT: {formatCurrency(p.interest_amount, assetCurrency)}</span>
                                                     {p.extra_principal_amount > 0 && (
                                                         <>
                                                             <span>•</span>
-                                                            <span className="text-emerald-500 font-bold">EXTRA: {formatCurrency(p.extra_principal_amount, currency)}</span>
+                                                            <span className="text-emerald-500 font-bold">EXTRA: {formatCurrency(p.extra_principal_amount, assetCurrency)}</span>
                                                         </>
                                                     )}
                                                 </p>

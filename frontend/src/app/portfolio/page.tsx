@@ -16,6 +16,7 @@ import { PortfolioHeader } from "./PortfolioHeader";
 import { FinancialAssetsList } from "./FinancialAssetsList";
 import { DigitalAssetsList } from "./DigitalAssetsList";
 import { PhysicalAssetsList } from "./PhysicalAssetsList";
+import { useConvertedPortfolio } from "@/core/hooks/useConvertedPortfolio";
 import dynamic from 'next/dynamic';
 import { Suspense, lazy } from "react";
 
@@ -59,6 +60,9 @@ export default function PortfolioPage() {
     const [showFinancialModal, setShowFinancialModal] = useState(false);
     const [showDigitalModal, setShowDigitalModal] = useState(false);
     const [showPhysicalModal, setShowPhysicalModal] = useState(false);
+
+    // Centralized Portfolio Calculations
+    const portfolio = useConvertedPortfolio(assets, currency);
 
     // El 'editingAsset' puede servir para cualquiera de los tres
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
@@ -166,7 +170,7 @@ export default function PortfolioPage() {
             if (editingAsset && editingAsset.type === 'financial') {
                 await ApiClient.updateAsset(editingAsset.id, completePayload);
             } else {
-                await ApiClient.createAsset({ currency, is_manual: true, ...completePayload as any });
+                await ApiClient.createAsset({ currency: completePayload.currency || currency, is_manual: true, ...completePayload as any });
             }
 
             setShowFinancialModal(false);
@@ -190,7 +194,7 @@ export default function PortfolioPage() {
                     await ApiClient.updateCdtDetails(editingAsset.id, cdtPayload);
                 }
             } else {
-                const newAsset = await ApiClient.createAsset({ currency, is_manual: true, ...completePayload as any });
+                const newAsset = await ApiClient.createAsset({ currency: completePayload.currency || currency, is_manual: true, ...completePayload as any });
                 if (loanPayload && completePayload.digital_type === 'loan') {
                     await ApiClient.createLoanDetails({
                         asset_id: newAsset.id,
@@ -217,7 +221,7 @@ export default function PortfolioPage() {
                         'buy',
                         investmentPayload.quantity,
                         investmentPayload.purchasePrice,
-                        currency,
+                        investmentPayload.currency || currency,
                         new Date().toISOString().split('T')[0]
                     );
                 }
@@ -235,7 +239,7 @@ export default function PortfolioPage() {
             if (editingAsset && editingAsset.type === 'physical') {
                 await ApiClient.updateAsset(editingAsset.id, payload);
             } else {
-                await ApiClient.createAsset({ currency, is_manual: true, ...payload as any, institution_id: null });
+                await ApiClient.createAsset({ currency: payload.currency || currency, is_manual: true, ...payload as any, institution_id: null });
             }
 
             setShowPhysicalModal(false);
@@ -293,6 +297,7 @@ export default function PortfolioPage() {
                             hideBalances={hideBalances}
                             activeTab={activeTab}
                             setActiveTab={setActiveTab}
+                            portfolio={portfolio}
                         />
 
                         {filteredAssets.length === 0 ? (
@@ -314,6 +319,7 @@ export default function PortfolioPage() {
                                         hideBalances={hideBalances}
                                         onAssetClick={handleAssetClick}
                                         onEditInstClick={openEditInstModal}
+                                        getAssetNetValueConverted={portfolio.getAssetNetValueConverted}
                                     />
                                 )}
                                 {activeTab === 'digital' && (
@@ -324,6 +330,7 @@ export default function PortfolioPage() {
                                         hideBalances={hideBalances}
                                         onAssetClick={handleAssetClick}
                                         onEditInstClick={openEditInstModal}
+                                        getAssetNetValueConverted={portfolio.getAssetNetValueConverted}
                                     />
                                 )}
                                 {activeTab === 'physical' && (
@@ -332,6 +339,7 @@ export default function PortfolioPage() {
                                         currency={currency}
                                         hideBalances={hideBalances}
                                         onAssetClick={handleAssetClick}
+                                        getAssetNetValueConverted={portfolio.getAssetNetValueConverted}
                                     />
                                 )}
                             </div>

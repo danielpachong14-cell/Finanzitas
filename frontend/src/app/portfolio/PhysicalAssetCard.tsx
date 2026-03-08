@@ -12,7 +12,8 @@ export function PhysicalAssetCard({
     viewMode: 'list' | 'gallery';
     onClick: () => void;
 }) {
-    const { currency, hideBalances } = useUserOptions();
+    const { currency: baseCurrency, hideBalances } = useUserOptions();
+    const assetCurrency = asset.currency || baseCurrency;
 
     // Calculate values
     const isFinanced = asset.has_credit && asset.credit_amount;
@@ -68,14 +69,14 @@ export function PhysicalAssetCard({
                     {isFinanced ? (
                         <>
                             <p className={`font-black tracking-tight ${progressPercent === 100 ? 'text-emerald-500' : 'text-foreground'} ${viewMode === 'gallery' ? 'text-2xl' : 'text-lg'}`}>
-                                {formatPrivacyCurrency(equityReal, currency, hideBalances)}
+                                {formatPrivacyCurrency(equityReal, assetCurrency, hideBalances)}
                             </p>
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Equity Real</p>
                         </>
                     ) : (
                         <>
                             <p className={`font-black text-foreground tracking-tight ${viewMode === 'gallery' ? 'text-2xl' : 'text-lg'}`}>
-                                {formatPrivacyCurrency(asset.current_value, currency, hideBalances)}
+                                {formatPrivacyCurrency(asset.current_value, assetCurrency, hideBalances)}
                             </p>
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Valor Estimado</p>
                         </>

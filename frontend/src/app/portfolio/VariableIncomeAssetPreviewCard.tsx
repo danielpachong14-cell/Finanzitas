@@ -3,6 +3,9 @@ import { formatPrivacyCurrency } from "@/lib/utils";
 import { Building, TrendingUp, TrendingDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FmpService, FmpQuote } from "@/core/api/providers/FmpService";
+import { useExchangeRate } from "@/core/hooks/useExchangeRate";
+import { AssetTransaction } from "@/core/api/types";
+import { ApiClient } from "@/core/api";
 
 interface VariableIncomeAssetPreviewCardProps {
     asset: Asset;
@@ -14,25 +17,41 @@ interface VariableIncomeAssetPreviewCardProps {
 export function VariableIncomeAssetPreviewCard({ asset, currency, hideBalances, onClick }: VariableIncomeAssetPreviewCardProps) {
     const [quote, setQuote] = useState<FmpQuote | null>(null);
     const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+    const [transactions, setTransactions] = useState<AssetTransaction[]>([]);
 
-    // Sumar las cantidades en transacciones para saber cuánto tenemos (si tuvieramos los movimientos aquí).
-    // Como no bajamos transactions pre-pobladas en Asset (solo cdt/loans), we'll assume current_value represents initial investment
-    // OR if we have shares, we multiply. For now, the user manually types total invested or we assume `current_value` is fallback.
-    // However, the proper way is to fetch the Transactions. To avoid blocking the render of the list, 
-    // the card can just show the ticker price!
+    // Live exchange rate
+    const assetCurrency = asset.currency || 'USD';
+    const { rate: exchangeRate, isLoading: isRateLoading } = useExchangeRate(assetCurrency, currency);
+
+    // Calcs for profit percentage based on transactions
+    const totalShares = transactions.reduce((sum, tx) => (tx.type === 'buy' ? sum + Number(tx.quantity) : sum - Number(tx.quantity)), 0);
+    const totalInvested = transactions.reduce((sum, tx) => {
+        const val = Number(tx.quantity) * Number(tx.price_per_share);
+        return tx.type === 'buy' ? sum + val : sum - val;
+    }, 0);
+
+    const currentMktVal = quote ? totalShares * quote.price : 0;
+    const profitPerc = totalInvested > 0 ? ((currentMktVal - totalInvested) / totalInvested) * 100 : 0;
 
     useEffect(() => {
-        if (!asset.ticker_symbol) return;
-
-        const fetchQuote = async () => {
+        const fetchData = async () => {
             setIsLoadingQuote(true);
-            const data = await FmpService.getQuote(asset.ticker_symbol!);
-            if (data) setQuote(data);
-            setIsLoadingQuote(false);
+            try {
+                const [txs, qData] = await Promise.all([
+                    ApiClient.getAssetTransactions(asset.id),
+                    asset.ticker_symbol ? FmpService.getQuote(asset.ticker_symbol) : Promise.resolve(null)
+                ]);
+                setTransactions(txs);
+                if (qData) setQuote(qData);
+            } catch (err) {
+                console.error("Error fetching preview card data", err);
+            } finally {
+                setIsLoadingQuote(false);
+            }
         };
 
-        fetchQuote();
-    }, [asset.ticker_symbol]);
+        fetchData();
+    }, [asset.id, asset.ticker_symbol]);
 
     return (
         <div onClick={onClick} className="bg-card border border-border/50 rounded-[24px] p-5 flex flex-col hover:border-primary/50 transition-colors group cursor-pointer shadow-sm hover:shadow-md relative overflow-hidden h-full">
@@ -58,10 +77,24 @@ export function VariableIncomeAssetPreviewCard({ asset, currency, hideBalances, 
             <div className="mt-auto flex flex-col gap-3">
                 {/* Fallback to static current_value if no ticker yet */}
                 <div>
-                    <p className="font-black text-foreground text-2xl tracking-tight break-words">
-                        {formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}
+                    <div className="flex items-center gap-3">
+                        <p className="font-black text-foreground text-2xl tracking-tight break-words leading-none">
+                            {formatPrivacyCurrency(quote ? currentMktVal : asset.current_value, assetCurrency, hideBalances)}
+                        </p>
+                        {quote && (
+                            <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${profitPerc >= 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                                {profitPerc >= 0 ? '+' : ''}{profitPerc.toFixed(1)}%
+                            </div>
+                        )}
+                    </div>
+                    {assetCurrency !== currency && (
+                        <p className="text-sm font-bold text-muted-foreground mt-1">
+                            {isRateLoading ? 'Convirtiendo...' : `≈ ${formatPrivacyCurrency((quote ? currentMktVal : asset.current_value) * exchangeRate, currency, hideBalances)}`}
+                        </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-1">
+                        {quote ? 'Valor de Mercado Actual' : 'Saldo / Inversión Inicial'}
                     </p>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Valor total invertido / Saldo</p>
                 </div>
 
                 {isLoadingQuote && (

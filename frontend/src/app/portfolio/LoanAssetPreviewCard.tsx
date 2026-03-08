@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Asset, ApiClient, LoanOptions, LoanPayment } from '@/core/api';
+import { useExchangeRate } from '@/core/hooks/useExchangeRate';
 
 interface Props {
     asset: Asset;
@@ -13,6 +14,9 @@ export default function LoanAssetPreviewCard({ asset, currency, hideBalances, on
     const [loanData, setLoanData] = useState<LoanOptions | null>(null);
     const [payments, setPayments] = useState<LoanPayment[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const assetCurrency = asset.currency || 'USD';
+    const { rate: exchangeRate, isLoading: isRateLoading } = useExchangeRate(assetCurrency, currency);
 
     useEffect(() => {
         let mounted = true;
@@ -65,8 +69,15 @@ export default function LoanAssetPreviewCard({ asset, currency, hideBalances, on
                     </div>
                 </div>
                 <div className="text-right flex flex-col items-end">
-                    <p className="font-black text-foreground text-lg tracking-tight break-words">{formatPrivacyCurrency(asset.current_value, asset.currency, hideBalances)}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Saldo Vivo</p>
+                    <p className="font-black text-foreground text-lg tracking-tight break-words leading-none">
+                        {formatPrivacyCurrency(asset.current_value, assetCurrency, hideBalances)}
+                    </p>
+                    {assetCurrency !== currency && (
+                        <p className="text-[10px] font-bold text-muted-foreground mt-0.5">
+                            {isRateLoading ? '...' : `≈ ${formatPrivacyCurrency(asset.current_value * exchangeRate, currency, hideBalances)}`}
+                        </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">Saldo Vivo</p>
                 </div>
             </div>
 

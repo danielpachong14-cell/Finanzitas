@@ -4,6 +4,7 @@ import { Building, Pencil, Landmark, HandCoins, Activity } from "lucide-react";
 import LoanAssetPreviewCard from "./LoanAssetPreviewCard";
 import { CDTAssetPreviewCard } from "./CDTAssetPreviewCard";
 import { VariableIncomeAssetPreviewCard } from "./VariableIncomeAssetPreviewCard";
+import { useConvertedPortfolio } from "@/core/hooks/useConvertedPortfolio";
 
 interface DigitalAssetsListProps {
     assets: Asset[]; // Pre-filtered to type === 'digital'
@@ -12,9 +13,10 @@ interface DigitalAssetsListProps {
     hideBalances: boolean;
     onAssetClick: (asset: Asset) => void;
     onEditInstClick: (inst: Institution) => void;
+    getAssetNetValueConverted: (a: Asset) => number;
 }
 
-export function DigitalAssetsList({ assets, institutions, currency, hideBalances, onAssetClick, onEditInstClick }: DigitalAssetsListProps) {
+export function DigitalAssetsList({ assets, institutions, currency, hideBalances, onAssetClick, onEditInstClick, getAssetNetValueConverted }: DigitalAssetsListProps) {
     if (assets.length === 0) return null;
 
     const cdts = assets.filter(a => a.digital_type === 'cdt' || (a.digital_type === 'investment' && a.cdt_details));
@@ -72,7 +74,9 @@ export function DigitalAssetsList({ assets, institutions, currency, hideBalances
                         {Object.entries(viGrouped).map(([instId, groupAssets]) => {
                             const inst = instId === 'NONE' ? null : institutions.find(i => i.id === instId);
                             const instName = inst ? inst.name : 'Posesión Propia / Sin Custodio';
-                            const groupTotal = groupAssets.reduce((sum, a) => sum + Number(a.current_value), 0);
+
+                            // Use the central conversion function for the group total
+                            const groupTotalConverted = groupAssets.reduce((sum, a) => sum + getAssetNetValueConverted(a), 0);
 
                             return (
                                 <div key={instId} className="bg-card/40 border border-border/30 rounded-[32px] p-4 sm:p-6 relative overflow-hidden">
@@ -93,7 +97,7 @@ export function DigitalAssetsList({ assets, institutions, currency, hideBalances
                                                 </button>
                                             )}
                                         </h4>
-                                        <span className="text-sm font-black text-foreground">{formatPrivacyCurrency(groupTotal, currency, hideBalances)}</span>
+                                        <span className="text-sm font-black text-foreground">{formatPrivacyCurrency(groupTotalConverted, currency, hideBalances)}</span>
                                     </div>
                                     <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4 font-sans">
                                         {groupAssets.map(asset => (

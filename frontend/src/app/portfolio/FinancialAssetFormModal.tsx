@@ -24,6 +24,7 @@ export function FinancialAssetFormModal({ isOpen, editingAsset, institutions, on
     const [newName, setNewName] = useState("");
     const [newLiquidity, setNewLiquidity] = useState<'L1_immediate' | 'L2_medium' | 'L3_low'>('L1_immediate');
     const [newVal, setNewVal] = useState("");
+    const [newCurrency, setNewCurrency] = useState("COP"); // Default or we could use user's base currency if passed
     const [newRate, setNewRate] = useState("");
     const [newInstitutionId, setNewInstitutionId] = useState("NONE");
     const [creatingInstitution, setCreatingInstitution] = useState(false);
@@ -37,6 +38,7 @@ export function FinancialAssetFormModal({ isOpen, editingAsset, institutions, on
                 setNewName(editingAsset.name);
                 setNewVal(editingAsset.current_value.toString());
                 setNewRate(editingAsset.interest_rate_nominal.toString());
+                setNewCurrency(editingAsset.currency || "COP");
                 setNewLiquidity(editingAsset.liquidity_layer);
                 setNewInstitutionId(editingAsset.institution_id || "NONE");
                 setCreatingInstitution(false);
@@ -46,6 +48,7 @@ export function FinancialAssetFormModal({ isOpen, editingAsset, institutions, on
                 setNewName("");
                 setNewVal("");
                 setNewRate("");
+                setNewCurrency("COP");
                 setNewLiquidity('L1_immediate');
                 setNewInstitutionId("NONE");
                 setCreatingInstitution(false);
@@ -68,6 +71,7 @@ export function FinancialAssetFormModal({ isOpen, editingAsset, institutions, on
                 name: newName,
                 type: 'financial',
                 liquidity_layer: newLiquidity,
+                currency: newCurrency,
                 current_value: parseFloat(newVal) || 0,
                 interest_rate_nominal: parseFloat(newRate) || 0,
                 is_payment_account: newIsPaymentAccount,
@@ -139,6 +143,36 @@ export function FinancialAssetFormModal({ isOpen, editingAsset, institutions, on
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Moneda</label>
+                            <select
+                                value={newCurrency}
+                                onChange={e => setNewCurrency(e.target.value)}
+                                className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-lg appearance-none"
+                                disabled={saving}
+                            >
+                                <option value="COP">COP ($)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="MXN">MXN ($)</option>
+                            </select>
+                        </div>
+                        <div className="col-span-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Nivel de Liquidez</label>
+                            <select
+                                value={newLiquidity}
+                                onChange={e => setNewLiquidity(e.target.value as any)}
+                                className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-base appearance-none"
+                                disabled={saving}
+                            >
+                                <option value="L1_immediate">L1 Inmediata (24hr)</option>
+                                <option value="L2_medium">L2 Media (2-7 días)</option>
+                                <option value="L3_low">L3 Baja (Meses/Años)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Tasa Anual (EA %)</label>
                             <input
@@ -170,20 +204,6 @@ export function FinancialAssetFormModal({ isOpen, editingAsset, institutions, on
                                 </div>
                             </label>
                         </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-bold text-muted-foreground mb-2 ml-2">Nivel de Liquidez</label>
-                        <select
-                            value={newLiquidity}
-                            onChange={e => setNewLiquidity(e.target.value as any)}
-                            className="w-full h-14 bg-muted border border-transparent rounded-2xl px-5 text-foreground font-bold outline-none focus:border-border/50 focus:bg-card focus:ring-2 focus:ring-primary/20 transition-all text-base appearance-none"
-                            disabled={saving}
-                        >
-                            <option value="L1_immediate">L1 Inmediata (24hr)</option>
-                            <option value="L2_medium">L2 Media (2-7 días)</option>
-                            <option value="L3_low">L3 Baja (Meses/Años)</option>
-                        </select>
                     </div>
 
                     {!creatingInstitution ? (
